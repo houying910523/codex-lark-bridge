@@ -6,6 +6,50 @@ const SUCCESS = 'green';
 const DANGER = 'red';
 const NEUTRAL = 'wathet';
 
+export type Card = {
+  config: {
+    update_multi: boolean,
+    width_mode: 'default',
+  }
+  i18n_header: {
+    zh_cn: {
+      title: {
+        tag: 'plain_text',
+        content: string,
+      },
+      template: string,
+    }
+  },
+  i18n_elements: {
+    zh_cn: object[],
+  },
+}
+
+function card(input: {
+  title: string;
+  template: string;
+  elements: object[];
+}): Card {
+  return {
+    config: {
+      update_multi: true,
+      width_mode: 'default',
+    },
+    i18n_header: {
+      zh_cn: {
+        title: {
+          tag: 'plain_text',
+          content: input.title,
+        },
+        template: input.template,
+      }
+    },
+    i18n_elements: {
+      zh_cn: input.elements,
+    },
+  };
+}
+
 export function buildSessionsCard(
   sessions: SessionSummary[],
   page: number,
@@ -13,6 +57,9 @@ export function buildSessionsCard(
 ): object {
   const start = page * pageSize;
   const pageItems = sessions.slice(start, start + pageSize);
+  pageItems.forEach(session => {
+    console.log(session.title)
+  })
   const maxPage = Math.max(0, Math.ceil(sessions.length / pageSize) - 1);
 
   return card({
@@ -236,8 +283,10 @@ function renderTaskMeta(task: TaskRecord): string {
 
 function renderSessionSummary(session: SessionSummary): string {
   return [
-    `**${session.title}**`,
+    `摘要: **${session.title}**`,
+    `Repo: ${session.repo ?? '-'} | Branch: ${session.branch ?? '-'} | 状态: ${session.status}`,
     `最近活跃: ${session.lastActiveAt}`,
+    `workspace: ${session.workspace ?? '-'}`,
   ].join('\n');
 }
 
@@ -246,27 +295,6 @@ function renderSummaryList(items: string[], title: string): string {
     ? items.map((item) => `- ${truncate(item, 180)}`).join('\n')
     : '- 暂无';
   return `**${title}**\n${content}`;
-}
-
-function card(input: {
-  title: string;
-  template: string;
-  elements: object[];
-}): object {
-  return {
-    config: {
-      wide_screen_mode: true,
-      enable_forward: true,
-    },
-    header: {
-      template: input.template,
-      title: {
-        tag: 'plain_text',
-        content: input.title,
-      },
-    },
-    elements: input.elements,
-  };
 }
 
 function markdown(content: string): object {

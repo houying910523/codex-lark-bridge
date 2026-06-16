@@ -1,49 +1,40 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import pino from 'pino';
 
-import { EventDispatcher } from '../src/event/index.js';
+import { EventDispatcher } from '../src/event/EventDispatcher.js';
 
 test('EventDispatcher publishes events to matching handlers', async () => {
-  const dispatcher = new EventDispatcher();
+  const dispatcher = new EventDispatcher<{ source: string; action: string }>(pino({ enabled: false }));
   const received: string[] = [];
 
   dispatcher.registerHandler(
-    {
-      target: 'codex',
-    },
+    'codex',
     async (event) => {
       received.push(`${event.source}:${event.action}`);
     },
   );
   dispatcher.registerHandler(
-    {
-      target: 'lark',
-    },
+    'other',
     async () => {
       received.push('should-not-run');
     },
   );
 
   await dispatcher.publish({
-    target: 'codex',
-    source: 'app',
+    source: 'codex',
     action: 'connected',
-    data: {
-      sessionId: 'session-1',
-    },
   });
 
-  assert.deepEqual(received, ['app:connected']);
+  assert.deepEqual(received, ['codex:connected']);
 });
 
 test('EventDispatcher unregisters handlers', async () => {
-  const dispatcher = new EventDispatcher();
+  const dispatcher = new EventDispatcher<{ source: string; action: string }>(pino({ enabled: false }));
   const received: string[] = [];
 
   const unregister = dispatcher.registerHandler(
-    {
-      action: 'message',
-    },
+    'gateway',
     async (event) => {
       received.push(event.action);
     },
@@ -52,35 +43,47 @@ test('EventDispatcher unregisters handlers', async () => {
   unregister();
 
   await dispatcher.publish({
-    target: 'codex',
     source: 'gateway',
     action: 'message',
-    data: {},
   });
 
   assert.deepEqual(received, []);
 });
 
-test('EventDispatcher continues invoking handlers when one handler fails', async () => {
-  const dispatcher = new EventDispatcher();
+test('EventDispatcher invokes all handlers for the same source', async () => {
+  const dispatcher = new EventDispatcher<{ source: string; action: string }>(pino({ enabled: false }));
   const received: string[] = [];
 
-  dispatcher.registerHandler({}, async () => {
+  dispatcher.registerHandler('lark', async (event) => {
+    received.push(`session:${event.action}`);
+  });
+  dispatcher.registerHandler('lark', async (event) => {
+    received.push(`task:${event.action}`);
+  });
+
+  await dispatcher.publish({
+    source: 'lark',
+    action: 'message',
+  });
+
+  assert.deepEqual(received, ['session:message', 'task:message']);
+});
+
+test('EventDispatcher continues invoking handlers when one handler fails', async () => {
+  const dispatcher = new EventDispatcher<{ source: string; action: string }>(pino({ enabled: false }));
+  const received: string[] = [];
+
+  dispatcher.registerHandler('gateway', async () => {
     throw new Error('boom');
   });
-  dispatcher.registerHandler({}, async (event) => {
+  dispatcher.registerHandler('gateway', async (event) => {
     received.push(event.action);
   });
 
-  await assert.rejects(
-    dispatcher.publish({
-      target: 'codex',
-      source: 'gateway',
-      action: 'message',
-      data: {},
-    }),
-    AggregateError,
-  );
+  await dispatcher.publish({
+    source: 'gateway',
+    action: 'message',
+  });
 
   assert.deepEqual(received, ['message']);
 });

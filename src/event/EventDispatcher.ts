@@ -7,7 +7,7 @@ export interface XEvent {
 export type EventHandler<T extends XEvent> = (event: T) => Promise<void> | void;
 
 export class EventDispatcher<T extends XEvent> {
-  private handlers = new Map<string, EventHandler<T>>();
+  private handlers = new Map<string, Set<EventHandler<T>>>();
 
   constructor(
     private readonly logger: Logger
@@ -15,27 +15,36 @@ export class EventDispatcher<T extends XEvent> {
   }
 
   registerHandler(source: string, handler: EventHandler<T>): () => void {
-    this.handlers.set(source, handler);
+    const handlers = this.handlers.get(source) ?? new Set<EventHandler<T>>();
+    handlers.add(handler);
+    this.handlers.set(source, handlers);
 
     return () => {
-      this.handlers.delete(source);
+      const registeredHandlers = this.handlers.get(source);
+      if (!registeredHandlers) {
+        return;
+      }
+
+      registeredHandlers.delete(handler);
+      if (registeredHandlers.size === 0) {
+        this.handlers.delete(source);
+      }
     };
   }
 
   async publish(event: T): Promise<void> {
-    const handler = this.handlers.get(event.source);
-    if (!handler) {
+    const handlers = this.handlers.get(event.source);
+    if (!handlers || handlers.size === 0) {
       return;
     }
 
-    try {
-      this.logger.info({event, handlers: this.handlers.size, caller: handler.name}, 'publish event');
-      await handler(event);
-    } catch (error) {
-      this.logger.info({
-        error,
-        event,
-      }, "Event handler failed");
+    for (const handler of handlers) {
+      try {
+        await handler(event);
+      } catch (error) {
+        console.error(error);
+        this.logger.error({ error, event, caller: handler.name }, "Event handler failed");
+      }
     }
   }
 }

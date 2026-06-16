@@ -139,6 +139,7 @@ export class CodexGateway {
       method: pending.method,
       data: payload,
     });
+    pending.resolve(payload.result)
   }
 
   private openSocket(): Promise<WebSocket> {

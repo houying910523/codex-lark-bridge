@@ -24,6 +24,7 @@ export class Application {
     const codexEventDispatcher = new EventDispatcher<CodexEvent>(logger.child({ component: 'codex-event-dispatcher' }));
     this.codex = new CodexGateway(config.codex, codexEventDispatcher, logger.child({ component: 'codex-gateway' }));
     const codexController = new CodexController(this.codex, logger.child({ component: 'codex-controller' }));
+    // codexEventDispatcher.registerHandler('codex-gateway', event => codexController.onCodexEvent(event));
 
     const larkEventDispatcher = new EventDispatcher<LarkEvent>(logger.child({ component: 'lark-event-dispatcher' }));
     this.lark = new LarkClient(

@@ -3,11 +3,13 @@ import { once } from 'node:events';
 import { setTimeout as delay } from 'node:timers/promises';
 import test from 'node:test';
 
+import pino from 'pino';
 import { WebSocketServer } from 'ws';
 
-import { CodexGateway } from '../src/codex/index.js';
+import { CodexEvent, CodexGateway } from '../src/codex/CodexGateway.js';
+import { EventDispatcher } from '../src/event/EventDispatcher.js';
 
-test('CodexGateway manages websocket connection lifecycle and raw messages', async () => {
+test('CodexGateway publishes response events from websocket messages', async () => {
   const server = new WebSocketServer({
     port: 0,
   });
@@ -19,45 +21,46 @@ test('CodexGateway manages websocket connection lifecycle and raw messages', asy
       throw new Error('Unexpected WebSocket server address');
     }
 
-    const gateway = new CodexGateway({
-      wsUrl: `ws://127.0.0.1:${address.port}`,
-      reconnectMs: 25,
-    });
+    const dispatcher = new EventDispatcher<CodexEvent>(pino({ enabled: false }));
+    const gateway = new CodexGateway(
+      {
+        wsUrl: `ws://127.0.0.1:${address.port}`,
+        reconnectMs: 25,
+      },
+      dispatcher,
+      pino({ enabled: false }),
+    );
 
-    const lifecycle: string[] = [];
-    const messages: string[] = [];
-
-    gateway.onConnected(() => {
-      lifecycle.push('connected');
-    });
-    gateway.onDisconnected(() => {
-      lifecycle.push('disconnected');
-    });
-    gateway.onMessage((payload) => {
-      messages.push(payload);
+    const receivedMethods: string[] = [];
+    dispatcher.registerHandler('codex-gateway', async (event) => {
+      receivedMethods.push(event.method);
     });
 
     server.on('connection', (socket) => {
-      socket.on('message', (payload) => {
-        socket.send(`echo:${payload.toString()}`);
+      socket.on('message', (payload: Buffer) => {
+        const request = JSON.parse(payload.toString());
+        socket.send(JSON.stringify({
+          jsonrpc: '2.0',
+          id: request.id,
+          result: {
+            ok: true,
+          },
+        }));
       });
     });
 
-    await gateway.connect();
-    await gateway.send('hello');
+    await gateway.send('hello', { text: 'world' });
 
-    for (let attempt = 0; attempt < 20 && messages.length === 0; attempt += 1) {
+    for (let attempt = 0; attempt < 20 && !receivedMethods.includes('hello'); attempt += 1) {
       await delay(10);
     }
 
     assert.equal(gateway.isConnected(), true);
-    assert.deepEqual(lifecycle, ['connected']);
-    assert.deepEqual(messages, ['echo:hello']);
+    assert.deepEqual(receivedMethods, ['initialize', 'hello']);
 
     await gateway.disconnect();
 
     assert.equal(gateway.isConnected(), false);
-    assert.deepEqual(lifecycle, ['connected', 'disconnected']);
   } finally {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => {

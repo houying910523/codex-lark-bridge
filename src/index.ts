@@ -24,7 +24,7 @@ async function main(): Promise<void> {
 
   const shutdown = async (signal: string) => {
     logger.info({ signal }, 'Shutting down');
-    await Promise.allSettled([app.stop(), httpServer.stop()]);
+    await Promise.all([app.stop(), httpServer.stop()]);
     process.exit(0);
   };
 

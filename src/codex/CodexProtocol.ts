@@ -8,9 +8,9 @@ export type ThreadStatus =
 export type SessionSource = "cli" | "vscode" | "exec" | "mcp" | { "custom": string } | { "internal": "memory_consolidation" } | "unknown";
 
 export type GitInfo = {
-  sha: string | null,
-  branch: string | null,
-  originUrl: string | null,
+  sha: string,
+  branch: string,
+  originUrl: string,
 };
 
 export interface Thread {

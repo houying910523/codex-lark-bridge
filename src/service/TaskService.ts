@@ -12,8 +12,8 @@ export class TaskService {
     private readonly larkEventDispatcher: EventDispatcher<LarkEvent>,
     private readonly logger: Logger,
   ) {
-    larkEventDispatcher.registerHandler('lark', this.onLarkEvent)
-    codexEventDispatcher.registerHandler('codex-gateway', this.onCodexEvent)
+    larkEventDispatcher.registerHandler('lark', event => this.onLarkEvent(event))
+    codexEventDispatcher.registerHandler('codex-gateway', event => this.onCodexEvent(event))
   }
 
   async onLarkEvent(event: LarkEvent): Promise<void> {

@@ -51,6 +51,7 @@ export function createHttpServer(
       }),
     stop: () =>
       new Promise((resolve, reject) => {
+        logger.info('HTTP server closing');
         server.close((error) => {
           if (error) {
             reject(error);
@@ -59,6 +60,7 @@ export function createHttpServer(
 
           resolve();
         });
+        logger.info('HTTP server closed');
       }),
   };
 }
