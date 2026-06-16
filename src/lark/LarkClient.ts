@@ -1,27 +1,24 @@
-import {
-  createLarkChannel,
-  type CardActionEvent,
-  type LarkChannel,
-  type LarkChannelError,
-  type NormalizedMessage,
-} from '@larksuiteoapi/node-sdk';
-import type { Logger } from 'pino';
+import {createLarkChannel, type LarkChannel, type LarkChannelError,} from '@larksuiteoapi/node-sdk';
+import type {Logger} from 'pino';
 
-import type { AppConfig } from './config.js';
+import type {AppConfig} from '../config.js';
+import {EventDispatcher, XEvent} from "../event/EventDispatcher.js";
 
-export interface LarkHandlers {
-  onMessage: (message: NormalizedMessage) => Promise<void>;
-  onCardAction: (event: CardActionEvent) => Promise<void>;
-  onError?: (error: unknown) => Promise<void>;
+export interface LarkEvent extends XEvent {
+  source: 'lark';
+  type: 'message' | 'cardAction';
+  payload: unknown;
 }
 
 export class LarkClient {
   private readonly channel: LarkChannel;
+
   private connected = false;
 
   constructor(
-    private readonly config: AppConfig['lark'],
-    private readonly logger: Logger,
+    config: AppConfig['lark'],
+    private readonly eventDispatcher: EventDispatcher<LarkEvent>,
+    private readonly logger: Logger
   ) {
     this.channel = createLarkChannel({
       appId: config.appId,
@@ -45,13 +42,21 @@ export class LarkClient {
     });
   }
 
-  async start(handlers: LarkHandlers): Promise<void> {
+  async start(): Promise<void> {
     this.channel.on({
       message: async (message) => {
-        await handlers.onMessage(message);
+        await this.eventDispatcher.publish({
+          source: 'lark',
+          type: 'message',
+          payload: message,
+        })
       },
       cardAction: async (event) => {
-        await handlers.onCardAction(event);
+        await this.eventDispatcher.publish({
+          source: 'lark',
+          type: 'cardAction',
+          payload: event,
+        })
       },
       reconnecting: () => {
         this.connected = false;
@@ -63,9 +68,6 @@ export class LarkClient {
       },
       error: async (error: LarkChannelError) => {
         this.logger.error({ err: error }, 'Lark channel error');
-        if (handlers.onError) {
-          await handlers.onError(error);
-        }
       },
     });
 

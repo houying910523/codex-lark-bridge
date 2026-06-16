@@ -1,5 +1,5 @@
-import type { ContinueOptions, PendingDecision, SessionDetail, SessionSummary, TaskRecord } from './domain/models.js';
-import { formatDateTime, truncate } from './domain/models.js';
+import type { ContinueOptions, PendingDecision, SessionDetail, SessionSummary, TaskRecord } from '../domain/models.js';
+import { formatDateTime, truncate } from '../domain/models.js';
 
 const PRIMARY = 'blue';
 const SUCCESS = 'green';

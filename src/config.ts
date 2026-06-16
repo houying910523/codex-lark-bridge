@@ -18,14 +18,6 @@ const envSchema = z.object({
   CODEX_WS_HANDSHAKE_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
   CODEX_WS_RECONNECT_MS: z.coerce.number().int().positive().default(3_000),
   OUTPUT_THROTTLE_MS: z.coerce.number().int().positive().default(3_000),
-  CODEX_METHOD_LIST_SESSIONS: z.string().trim().default('sessions/list'),
-  CODEX_METHOD_GET_SESSION: z.string().trim().default('sessions/get'),
-  CODEX_METHOD_CONTINUE_SESSION: z.string().trim().default('sessions/continue'),
-  CODEX_METHOD_CANCEL_TASK: z.string().trim().default('tasks/cancel'),
-  CODEX_METHOD_GET_TASK: z.string().trim().default('tasks/get'),
-  CODEX_METHOD_SUBMIT_DECISION: z.string().trim().default('tasks/decision'),
-  CODEX_METHOD_SUBSCRIBE_TASK: z.string().trim().optional(),
-  CODEX_NOTIFICATION_TASK_EVENT: z.string().trim().default('tasks/event'),
 });
 
 export interface AppConfig {
@@ -42,16 +34,6 @@ export interface AppConfig {
     wsUrl: string;
     handshakeTimeoutMs: number;
     reconnectMs: number;
-    methods: {
-      listSessions: string;
-      getSession: string;
-      continueSession: string;
-      cancelTask: string;
-      getTask: string;
-      submitDecision: string;
-      subscribeTask?: string;
-      taskEventNotification: string;
-    };
   };
   outputThrottleMs: number;
 }
@@ -73,16 +55,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       wsUrl: parsed.CODEX_WS_URL,
       handshakeTimeoutMs: parsed.CODEX_WS_HANDSHAKE_TIMEOUT_MS,
       reconnectMs: parsed.CODEX_WS_RECONNECT_MS,
-      methods: {
-        listSessions: parsed.CODEX_METHOD_LIST_SESSIONS,
-        getSession: parsed.CODEX_METHOD_GET_SESSION,
-        continueSession: parsed.CODEX_METHOD_CONTINUE_SESSION,
-        cancelTask: parsed.CODEX_METHOD_CANCEL_TASK,
-        getTask: parsed.CODEX_METHOD_GET_TASK,
-        submitDecision: parsed.CODEX_METHOD_SUBMIT_DECISION,
-        subscribeTask: parsed.CODEX_METHOD_SUBSCRIBE_TASK,
-        taskEventNotification: parsed.CODEX_NOTIFICATION_TASK_EVENT,
-      },
     },
     outputThrottleMs: parsed.OUTPUT_THROTTLE_MS,
   };

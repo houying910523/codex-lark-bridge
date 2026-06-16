@@ -3,9 +3,12 @@ import pino from 'pino';
 import { BridgeApplication } from './app.js';
 import { loadConfig } from './config.js';
 import { CodexWebSocketClient } from './codex.js';
-import { LarkClient } from './lark-client.js';
-import { createHttpServer } from './server.js';
+import { LarkClient } from './lark/LarkClient.js';
+import {createHttpServer, ReadinessProvider} from './server.js';
 import { AuditRepository, BindingsRepository, DecisionsRepository, TasksRepository } from './storage/repositories.js';
+import {CodexGateway} from "./codex/CodexGateway.js";
+import {EventDispatcher} from "./event/EventDispatcher.js";
+import {Application} from "./Application.js";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -13,23 +16,7 @@ async function main(): Promise<void> {
     level: config.logLevel,
   });
 
-  const bindings = new BindingsRepository(config.dataDir);
-  const tasks = new TasksRepository(config.dataDir);
-  const decisions = new DecisionsRepository(config.dataDir);
-  const audit = new AuditRepository(config.dataDir);
-
-  const lark = new LarkClient(config.lark, logger.child({ component: 'lark' }));
-  const codex = new CodexWebSocketClient(config.codex, logger.child({ component: 'codex' }));
-  const app = new BridgeApplication(
-    config,
-    logger.child({ component: 'bridge' }),
-    lark,
-    codex,
-    bindings,
-    tasks,
-    decisions,
-    audit,
-  );
+  const app = new Application(config, logger);
   const httpServer = createHttpServer(config.port, app, logger.child({ component: 'http' }));
 
   await app.start();
