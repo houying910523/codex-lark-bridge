@@ -2,8 +2,8 @@ import type { CardActionEvent, NormalizedMessage } from '@larksuiteoapi/node-sdk
 import type { Logger } from 'pino';
 
 import type { AppConfig } from './config.js';
-import { buildConfirmationCard, buildContinueCard, buildRunningCard, buildSessionDetailCard, buildSessionsCard, buildStatusCard, buildTerminalCard } from './lark-card.js';
-import type { LarkClient } from './lark-client.js';
+import { buildConfirmationCard, buildContinueCard, buildRunningCard, buildSessionDetailCard, buildSessionsCard, buildStatusCard, buildTerminalCard } from './lark/LarkCard.js';
+import type { LarkClient } from './lark/LarkClient.js';
 import { parseCommand } from './domain/commands.js';
 import { DEFAULT_CONTINUE_OPTIONS, digestPrompt, isTerminalState, truncate, type BridgeEvent, type ContinueOptions, type PendingDecision, type SessionDetail, type SessionSummary, type TaskRecord } from './domain/models.js';
 import { applyTaskSnapshot, createInitialTaskRecord, reduceTaskEvent } from './domain/state.js';
@@ -32,13 +32,7 @@ export class BridgeApplication {
   async start(): Promise<void> {
     await this.codex.connect();
     await this.restoreActiveTasks();
-    await this.lark.start({
-      onMessage: async (message) => this.onMessage(message),
-      onCardAction: async (event) => this.onCardAction(event),
-      onError: async (error) => {
-        this.logger.error({ err: error }, 'Lark client surfaced error');
-      },
-    });
+    await this.lark.start();
     this.started = true;
   }
 
@@ -210,11 +204,11 @@ export class BridgeApplication {
     const sessions = await this.codex.listSessions(operatorId);
     sessions.forEach((session) => this.sessionCache.set(session.sessionId, session));
 
-    const card = buildSessionsCard({
+    const card = buildSessionsCard(
       sessions,
       page,
-      pageSize: PAGE_SIZE,
-    });
+      PAGE_SIZE,
+    );
 
     const messageId = await this.renderCard(chatId, card, existingMessageId, replyTo);
     await this.bindings.bindMessage({
@@ -326,8 +320,8 @@ export class BridgeApplication {
       taskId,
       sessionId: input.sessionId,
       sessionTitle: session.title,
-      repo: session.repo,
-      branch: session.branch,
+      // repo: session.repo,
+      // branch: session.branch,
       operatorId: input.operatorId,
       chatId: input.chatId,
       messageId: input.existingMessageId,

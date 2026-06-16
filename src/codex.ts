@@ -92,7 +92,7 @@ export class CodexWebSocketClient extends EventEmitter {
   }
 
   async listSessions(operatorId: string): Promise<SessionSummary[]> {
-    const result = await this.request<unknown>(this.config.methods.listSessions, {
+    const result = await this.request<unknown>("thread/list", {
       operatorId,
     });
 
@@ -100,7 +100,7 @@ export class CodexWebSocketClient extends EventEmitter {
   }
 
   async getSessionDetail(sessionId: string, operatorId: string): Promise<SessionDetail> {
-    const result = await this.request<unknown>(this.config.methods.getSession, {
+    const result = await this.request<unknown>("thread/get", {
       sessionId,
       operatorId,
     });
@@ -114,7 +114,7 @@ export class CodexWebSocketClient extends EventEmitter {
     options: ContinueOptions,
     operatorId: string,
   ): Promise<{ taskId: string }> {
-    const result = await this.request<unknown>(this.config.methods.continueSession, {
+    const result = await this.request<unknown>("thread/continue", {
       sessionId,
       prompt,
       options,
@@ -130,7 +130,7 @@ export class CodexWebSocketClient extends EventEmitter {
   }
 
   async cancelTask(taskId: string, operatorId: string): Promise<void> {
-    await this.request(this.config.methods.cancelTask, { taskId, operatorId });
+    await this.request<unknown>("thread/cancel", { taskId, operatorId });
   }
 
   async submitDecision(
@@ -139,7 +139,7 @@ export class CodexWebSocketClient extends EventEmitter {
     option: string,
     operatorId: string,
   ): Promise<void> {
-    await this.request(this.config.methods.submitDecision, {
+    await this.request<unknown>("thread/submit", {
       taskId,
       decisionToken,
       option,
@@ -148,7 +148,7 @@ export class CodexWebSocketClient extends EventEmitter {
   }
 
   async getTaskSnapshot(taskId: string): Promise<TaskSnapshot> {
-    const result = await this.request<unknown>(this.config.methods.getTask, {
+    const result = await this.request<unknown>("thread/get", {
       taskId,
     });
 
@@ -162,10 +162,6 @@ export class CodexWebSocketClient extends EventEmitter {
     const handlers = this.taskSubscribers.get(taskId) ?? new Set();
     handlers.add(handler);
     this.taskSubscribers.set(taskId, handlers);
-
-    if (this.config.methods.subscribeTask) {
-      await this.request(this.config.methods.subscribeTask, { taskId });
-    }
 
     return () => {
       const current = this.taskSubscribers.get(taskId);
@@ -340,17 +336,7 @@ export class CodexWebSocketClient extends EventEmitter {
   }
 
   private async resubscribeAll(): Promise<void> {
-    if (!this.config.methods.subscribeTask || this.taskSubscribers.size === 0) {
-      return;
-    }
 
-    for (const taskId of this.taskSubscribers.keys()) {
-      try {
-        await this.request(this.config.methods.subscribeTask, { taskId });
-      } catch (error) {
-        this.logger.warn({ err: error, taskId }, 'Failed to resubscribe task after reconnect');
-      }
-    }
   }
 }
 

@@ -3,19 +3,19 @@ export type SessionStatus = 'idle' | 'running' | 'error' | 'unknown';
 export interface SessionSummary {
   sessionId: string;
   title: string;
-  repo?: string;
-  branch?: string;
   workspace?: string;
   lastActiveAt: string;
-  status: SessionStatus;
-  lastSummary?: string;
-  owner?: string;
+  status: string;
 }
 
 export interface SessionDetail extends SessionSummary {
   recentMessages: string[];
   recentFiles: string[];
   lastTaskSummary?: string;
+  repo?: string;
+  branch?: string;
+  lastSummary?: string;
+  owner?: string;
 }
 
 export interface ContinueOptions {

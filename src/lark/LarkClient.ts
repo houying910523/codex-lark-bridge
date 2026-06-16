@@ -5,7 +5,6 @@ import type {AppConfig} from '../config.js';
 import {EventDispatcher, XEvent} from "../event/EventDispatcher.js";
 
 export interface LarkEvent extends XEvent {
-  source: 'lark';
   type: 'message' | 'cardAction';
   payload: unknown;
 }
@@ -45,6 +44,7 @@ export class LarkClient {
   async start(): Promise<void> {
     this.channel.on({
       message: async (message) => {
+        this.logger.info({message}, "onMessage")
         await this.eventDispatcher.publish({
           source: 'lark',
           type: 'message',

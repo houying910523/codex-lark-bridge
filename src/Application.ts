@@ -10,6 +10,7 @@ import {TaskService} from "./service/TaskService.js";
 
 export class Application {
   private started = false;
+  private readonly logger: Logger;
   private readonly lark: LarkClient;
   private readonly codex: CodexGateway;
   private readonly sessionService: SessionService;
@@ -19,8 +20,9 @@ export class Application {
     config: AppConfig,
     logger: Logger,
   ) {
+    this.logger = logger.child({ component: 'application' });
     const codexEventDispatcher = new EventDispatcher<CodexEvent>(logger.child({ component: 'codex-event-dispatcher' }));
-    this.codex = new CodexGateway(config.codex, codexEventDispatcher, logger.child({ component: 'codex' }));
+    this.codex = new CodexGateway(config.codex, codexEventDispatcher, logger.child({ component: 'codex-gateway' }));
     const codexController = new CodexController(this.codex, logger.child({ component: 'codex-controller' }));
 
     const larkEventDispatcher = new EventDispatcher<LarkEvent>(logger.child({ component: 'lark-event-dispatcher' }));

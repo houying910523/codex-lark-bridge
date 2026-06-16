@@ -6,20 +6,20 @@ const SUCCESS = 'green';
 const DANGER = 'red';
 const NEUTRAL = 'wathet';
 
-export function buildSessionsCard(input: {
-  sessions: SessionSummary[];
-  page: number;
-  pageSize: number;
-}): object {
-  const start = input.page * input.pageSize;
-  const pageItems = input.sessions.slice(start, start + input.pageSize);
-  const maxPage = Math.max(0, Math.ceil(input.sessions.length / input.pageSize) - 1);
+export function buildSessionsCard(
+  sessions: SessionSummary[],
+  page: number,
+  pageSize: number,
+): object {
+  const start = page * pageSize;
+  const pageItems = sessions.slice(start, start + pageSize);
+  const maxPage = Math.max(0, Math.ceil(sessions.length / pageSize) - 1);
 
   return card({
     title: '选择一个 Codex 会话',
     template: PRIMARY,
     elements: [
-      markdown(`找到 **${input.sessions.length}** 个会话，按最近活跃时间倒序展示。`),
+      markdown(`找到 **${sessions.length}** 个会话，按最近活跃时间倒序展示。`),
       ...pageItems.flatMap((session) => [
         markdown(renderSessionSummary(session)),
         actions([
@@ -37,13 +37,13 @@ export function buildSessionsCard(input: {
       actions([
         button('上一页', {
           action: 'page_sessions',
-          page: Math.max(0, input.page - 1),
-        }, undefined, input.page === 0),
+          page: Math.max(0, page - 1),
+        }, undefined, page === 0),
         button('下一页', {
           action: 'page_sessions',
-          page: Math.min(maxPage, input.page + 1),
-        }, undefined, input.page >= maxPage),
-        button('刷新', { action: 'refresh_sessions', page: input.page }),
+          page: Math.min(maxPage, page + 1),
+        }, undefined, page >= maxPage),
+        button('刷新', { action: 'refresh_sessions', page: page }),
       ]),
     ],
   });
@@ -86,10 +86,6 @@ export function buildContinueCard(session: SessionSummary): object {
     template: PRIMARY,
     elements: [
       markdown([
-        `**Repo**: ${session.repo ?? '-'}`,
-        `**Branch**: ${session.branch ?? '-'}`,
-        `**最近摘要**: ${session.lastSummary ?? '暂无'}`,
-        '',
         '填写下面的输入框后点击动作按钮。如果飞书卡片表单字段未成功回传，也可以直接发送：',
         `\`/codex continue <你的指令>\``,
       ].join('\n')),
@@ -241,9 +237,7 @@ function renderTaskMeta(task: TaskRecord): string {
 function renderSessionSummary(session: SessionSummary): string {
   return [
     `**${session.title}**`,
-    `Repo: ${session.repo ?? '-'} | Branch: ${session.branch ?? '-'} | 状态: ${session.status}`,
     `最近活跃: ${session.lastActiveAt}`,
-    `摘要: ${session.lastSummary ?? '暂无'}`,
   ].join('\n');
 }
 

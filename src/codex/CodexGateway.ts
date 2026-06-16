@@ -10,12 +10,13 @@ export interface CodexGatewayOptions {
 }
 
 export interface CodexEvent extends XEvent {
-  source: string;
   method: string;
   data: Record<string, unknown>;
 }
 
 type PendingRequest = {
+  resolve: (value: unknown) => void;
+  reject: (error: Error) => void;
   id: number;
   method: string;
   timeout: NodeJS.Timeout;
@@ -43,17 +44,17 @@ export class CodexGateway {
       return;
     }
 
-    if (this.connectPromise) {
-      return this.connectPromise;
-    }
-
     this.intentionallyClosed = false;
-    this.connectPromise = this.openSocket();
-    try {
-      await this.connectPromise;
-    } finally {
-      this.connectPromise = undefined;
-    }
+    this.openSocket().then(ws => {
+      this.ws = ws;
+      this.send("initialize", {
+        "clientInfo": {
+          "name": "codex_vscode",
+          "title": "Codex VS Code Extension",
+          "version": "0.1.0"
+        }
+      })
+    })
   }
 
   async disconnect(): Promise<void> {
@@ -81,7 +82,7 @@ export class CodexGateway {
     return this.connected;
   }
 
-  async send(method: string, params: Record<string, unknown>): Promise<void> {
+  async send<T = unknown>(method: string, params: Record<string, unknown>): Promise<T> {
     await this.connect();
     const ws = this.ws;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
@@ -97,15 +98,23 @@ export class CodexGateway {
       params: params,
     })
 
-    await new Promise<void>((resolve, reject) => {
+    return new Promise<T>((resolve, reject) => {
       const timeout = setTimeout(() => {
         this.pendingRequests.delete(id);
         reject(new CodexProtocolError(`Codex request timed out: ${method}`));
       }, 20_000);
 
-      this.pendingRequests.set(id, { id, method, timeout });
+      this.pendingRequests.set(id, {
+        resolve: (value) => resolve(value as T),
+        reject,
+        id,
+        method,
+        timeout,
+      });
+
       ws.send(payload, (error?: Error) => {
         if (!error) {
+          // this.logger.info(payload)
           return;
         }
         clearTimeout(timeout);
@@ -132,29 +141,18 @@ export class CodexGateway {
     });
   }
 
-  private openSocket(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      this.logger.info({
-        wsUrl: this.options.wsUrl,
-      }, 'Connecting to Codex WebSocket');
+  private openSocket(): Promise<WebSocket> {
+    return new Promise<WebSocket>( (resolve, reject) => {
+      this.logger.info({ wsUrl: this.options.wsUrl }, 'Connecting to Codex WebSocket');
 
       const ws = new WebSocket(this.options.wsUrl, {
         handshakeTimeout: this.options.handshakeTimeoutMs ?? 10_000,
       });
-      this.ws = ws;
 
       ws.on('open', () => {
-        this.connected = true;
         this.logger.info('Connected to Codex WebSocket');
-        this.send("initialize", {
-          "clientInfo": {
-            "name": "codex-lark-bridge",
-            "title": "Codex Lark Bridge",
-            "version": "0.1.0"
-          }
-        }).then(() => {
-          resolve();
-        });
+        this.connected = true;
+        resolve(ws);
       });
 
       ws.on('message', (payload) => {
@@ -174,6 +172,7 @@ export class CodexGateway {
           this.scheduleReconnect();
         }
       });
+      return ws
     });
   }
 

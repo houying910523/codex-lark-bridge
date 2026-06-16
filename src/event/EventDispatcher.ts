@@ -24,12 +24,12 @@ export class EventDispatcher<T extends XEvent> {
 
   async publish(event: T): Promise<void> {
     const handler = this.handlers.get(event.source);
-
     if (!handler) {
       return;
     }
 
     try {
+      this.logger.info({event, handlers: this.handlers.size, caller: handler.name}, 'publish event');
       await handler(event);
     } catch (error) {
       this.logger.info({
