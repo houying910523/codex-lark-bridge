@@ -1,5 +1,6 @@
-import type { ContinueOptions, PendingDecision, SessionDetail, SessionSummary, TaskRecord } from '../domain/models.js';
-import { formatDateTime, truncate } from '../domain/models.js';
+import type {PendingDecision, SessionSummary, TaskRecord} from '../domain/models.js';
+import {formatDateTime, truncate} from '../domain/models.js';
+import {Thread} from "../codex/protocol/v2";
 
 const PRIMARY = 'blue';
 const SUCCESS = 'green';
@@ -96,31 +97,47 @@ export function buildSessionsCard(
   });
 }
 
-export function buildSessionDetailCard(detail: SessionDetail): object {
-  const recentMessages = detail.recentMessages.length > 0
-    ? detail.recentMessages.map((message, index) => `${index + 1}. ${truncate(message, 140)}`).join('\n')
-    : '暂无最近消息摘要';
-
-  const recentFiles = detail.recentFiles.length > 0 ? detail.recentFiles.join(', ') : '暂无文件变更摘要';
-
+export function buildSessionDetailCard(session: Thread, userId: string): object {
+  let firstUserMessage: Array<object> = [];
+  let lastAgentMessage: Array<object> = [];
+  session.turns.forEach(turn => {
+    turn.items.forEach(item => {
+      if (item.type === 'agentMessage') {
+        lastAgentMessage = [
+          person('codex'),
+          markdown(item.text || '')
+        ]
+      }
+      if (item.type === 'userMessage' && !firstUserMessage.length) {
+        firstUserMessage = [
+          person(userId),
+        ]
+        item.content.forEach(ele => {
+          if (ele.type === 'text') {
+            firstUserMessage.push(
+              markdown(ele.text || '')
+            )
+          }
+        })
+      }
+    })
+  })
   return card({
-    title: `会话详情: ${detail.title}`,
+    title: `会话详情: ${session.preview.substring(0, Math.min(40, session.preview.length))}`,
     template: PRIMARY,
     elements: [
       markdown([
-        `**Session ID**: \`${detail.sessionId}\``,
-        `**Repo**: ${detail.repo ?? '-'}`,
-        `**Branch**: ${detail.branch ?? '-'}`,
-        `**Workspace**: ${detail.workspace ?? '-'}`,
-        `**最近活跃**: ${detail.lastActiveAt}`,
-        `**状态**: ${detail.status}`,
-        `**最近摘要**: ${detail.lastSummary ?? '暂无'}`,
-        `**最近任务**: ${detail.lastTaskSummary ?? '暂无'}`,
+        `**Session ID**: \`${session.id}\``,
+        `**Repo**: ${session.gitInfo?.originUrl ?? '-'}`,
+        `**Branch**: ${session.gitInfo?.branch ?? '-'}`,
+        `**Workspace**: ${session.cwd ?? '-'}`,
+        `**最近活跃**: ${new Date(session.updatedAt * 1000).toLocaleString()}`,
+        `**状态**: ${session.status.type}`,
       ].join('\n')),
-      markdown(`**最近消息**\n${recentMessages}`),
-      markdown(`**最近文件**\n${recentFiles}`),
+      ...firstUserMessage,
+      ...lastAgentMessage,
       actions([
-        button('继续这个会话', { action: 'open_continue', sessionId: detail.sessionId }, 'primary'),
+        button('继续这个会话', { action: 'open_continue', sessionId: session.id }, 'primary'),
         button('返回列表', { action: 'refresh_sessions', page: 0 }),
       ]),
     ],
@@ -295,6 +312,14 @@ function renderSummaryList(items: string[], title: string): string {
     ? items.map((item) => `- ${truncate(item, 180)}`).join('\n')
     : '- 暂无';
   return `**${title}**\n${content}`;
+}
+
+function person(name: string): object {
+  return {
+    "tag": "person",
+    "size": "medium",
+    "user_id": name
+  }
 }
 
 function markdown(content: string): object {

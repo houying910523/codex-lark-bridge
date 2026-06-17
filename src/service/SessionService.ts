@@ -5,7 +5,7 @@ import {LarkClient, LarkEvent} from "../lark/LarkClient.js";
 import {CodexEvent} from "../codex/CodexGateway.js";
 import {CardActionEvent, NormalizedMessage} from "@larksuiteoapi/node-sdk";
 import {parseCommand} from "../domain/commands.js";
-import {buildSessionsCard} from "../lark/LarkCard.js";
+import {buildSessionDetailCard, buildSessionsCard} from "../lark/LarkCard.js";
 import {SessionSummary} from "../domain/models.js";
 
 const PAGE_SIZE = 10
@@ -13,13 +13,11 @@ const PAGE_SIZE = 10
 export class SessionService {
   constructor(
     private readonly codexController: CodexController,
-    private readonly codexEventDispatcher: EventDispatcher<CodexEvent>,
     private readonly lark: LarkClient,
     private readonly larkEventDispatcher: EventDispatcher<LarkEvent>,
     private readonly logger: Logger,
   ) {
     larkEventDispatcher.registerHandler('lark', event => this.onLarkEvent(event))
-    codexEventDispatcher.registerHandler('codex-gateway', event => this.onCodexEvent(event))
   }
 
   async onLarkEvent(event: LarkEvent): Promise<void> {
@@ -40,7 +38,7 @@ export class SessionService {
     const {
       chat_id: chatId,
       chat_type: chatType,
-      content: content,
+      content,
       message_id: messageId,
     } = payload.message
     if (chatType !== 'p2p') {
@@ -61,21 +59,31 @@ export class SessionService {
   }
 
   async onLarkCardAction(payload: Record<string, any>): Promise<void> {
-    console.log(payload)
     const actionValue = payload.action.value as Record<string, unknown>
+    const {
+      open_message_id: messageId,
+      open_chat_id: chatId,
+    } = payload.context
     if (actionValue.action === 'page_sessions') {
       const page = actionValue.page as number
-      const {
-        open_message_id: messageId,
-        open_chat_id: chatId,
-      } = payload.context
       await this.listSessions(chatId, page ?? 0, messageId, true)
+    }
+    if (actionValue.action === 'view_session_detail') {
+      const sessionId = actionValue.sessionId as string
+      await this.getSession(chatId, sessionId, payload.operator?.user_id)
     }
   }
 
-  async onCodexEvent(event: CodexEvent): Promise<void> {
-    this.logger.info(event)
+  async getSession(chatId: string, sessionId: string, userId: string): Promise<void> {
+    const session = await this.codexController.getSession(sessionId)
+    if (!session) {
+      await this.lark.sendText(chatId, '会话不存在');
+      return;
+    }
+    const card = buildSessionDetailCard(session, userId)
+    await this.lark.sendCard(chatId, card)
   }
+
 
   async listSessions(chatId: string, page: number, messageId: string, update: boolean): Promise<void> {
     const sessions = await this.codexController.listSessions();

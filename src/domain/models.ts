@@ -3,8 +3,8 @@ export type SessionStatus = 'idle' | 'running' | 'error' | 'unknown';
 export interface SessionSummary {
   sessionId: string;
   title: string;
-  repo?: string;
-  branch?: string;
+  repo?: string | null;
+  branch?: string | null;
   workspace?: string;
   lastActiveAt: string;
   status: string;

@@ -7,13 +7,11 @@ import {LarkClient, LarkEvent} from "../lark/LarkClient.js";
 export class TaskService {
   constructor(
     private readonly codexController: CodexController,
-    private readonly codexEventDispatcher: EventDispatcher<CodexEvent>,
     private readonly lark: LarkClient,
     private readonly larkEventDispatcher: EventDispatcher<LarkEvent>,
     private readonly logger: Logger,
   ) {
     larkEventDispatcher.registerHandler('lark', event => this.onLarkEvent(event))
-    codexEventDispatcher.registerHandler('codex-gateway', event => this.onCodexEvent(event))
   }
 
   async onLarkEvent(event: LarkEvent): Promise<void> {

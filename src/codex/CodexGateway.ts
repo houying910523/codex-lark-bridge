@@ -134,11 +134,12 @@ export class CodexGateway {
 
     clearTimeout(pending.timeout);
     this.pendingRequests.delete(id);
-    await this.eventDispatcher.publish({
-      source: 'codex-gateway',
-      method: pending.method,
-      data: payload,
-    });
+    // await this.eventDispatcher.publish({
+    //   source: 'codex-gateway',
+    //   method: pending.method,
+    //   data: payload,
+    // });
+    console.log(payload.result)
     pending.resolve(payload.result)
   }
 
