@@ -1,8 +1,9 @@
 import WebSocket from 'ws';
 import {Logger} from "pino";
 import {EventDispatcher, XEvent} from "../event/EventDispatcher.js";
-import {CodexProtocolError} from "../codex.js";
 import {ServerNotification} from "./protocol";
+
+export class CodexProtocolError extends Error {}
 
 export interface CodexGatewayOptions {
   wsUrl: string;
