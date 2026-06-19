@@ -18,6 +18,9 @@ const envSchema = z.object({
   CODEX_WS_HANDSHAKE_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
   CODEX_WS_RECONNECT_MS: z.coerce.number().int().positive().default(3_000),
   OUTPUT_THROTTLE_MS: z.coerce.number().int().positive().default(3_000),
+
+  CODEX_SESSION_CWD: z.string().trim().optional(),
+  CODEX_SESSION_SOURCE: z.string().trim().default('codex-lark-bridge')
 });
 
 export interface AppConfig {
@@ -34,6 +37,10 @@ export interface AppConfig {
     wsUrl: string;
     handshakeTimeoutMs: number;
     reconnectMs: number;
+  };
+  controller: {
+    cwd?: string,
+    source: string,
   };
   outputThrottleMs: number;
 }
@@ -55,6 +62,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       wsUrl: parsed.CODEX_WS_URL,
       handshakeTimeoutMs: parsed.CODEX_WS_HANDSHAKE_TIMEOUT_MS,
       reconnectMs: parsed.CODEX_WS_RECONNECT_MS,
+    },
+    controller: {
+      cwd: parsed.CODEX_SESSION_CWD,
+      source: parsed.CODEX_SESSION_SOURCE,
     },
     outputThrottleMs: parsed.OUTPUT_THROTTLE_MS,
   };

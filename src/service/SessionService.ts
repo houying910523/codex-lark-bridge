@@ -1,23 +1,40 @@
-import {CodexController} from "../codex/CodexController.js";
+import {CodexController} from "../codex/CodexController";
 import {Logger} from "pino";
-import {EventDispatcher} from "../event/EventDispatcher.js";
-import {LarkClient, LarkEvent} from "../lark/LarkClient.js";
-import {CodexEvent} from "../codex/CodexGateway.js";
-import {CardActionEvent, NormalizedMessage} from "@larksuiteoapi/node-sdk";
-import {parseCommand} from "../domain/commands.js";
-import {buildSessionDetailCard, buildSessionsCard} from "../lark/LarkCard.js";
-import {SessionSummary} from "../domain/models.js";
+import {LarkClient, LarkEvent} from "../lark/LarkClient";
+import {ParsedCommand} from "../domain/commands";
+import {buildSessionDetailCard, buildSessionsCard} from "../lark/LarkCard";
+import {SessionSummary} from "../domain/models";
+import {TaskStore} from "../storage/TaskStore";
+import {EventDispatcher} from "../event/EventDispatcher";
+import {CodexEvent} from "../codex/CodexGateway";
 
 const PAGE_SIZE = 10
 
 export class SessionService {
   constructor(
     private readonly codexController: CodexController,
+    codexEventDispatcher: EventDispatcher<CodexEvent>,
     private readonly lark: LarkClient,
-    private readonly larkEventDispatcher: EventDispatcher<LarkEvent>,
+    larkEventDispatcher: EventDispatcher<LarkEvent>,
+    private readonly taskStore: TaskStore,
     private readonly logger: Logger,
   ) {
+    codexEventDispatcher.registerHandler('codex-gateway', event => this.onCodexEvent(event))
     larkEventDispatcher.registerHandler('lark', event => this.onLarkEvent(event))
+  }
+
+  async onCodexEvent(event: CodexEvent): Promise<void> {
+    if (event.method === 'initialized') {
+      await this.restoreSession()
+    }
+  }
+
+  async restoreSession(): Promise<void> {
+    const taskState = await this.taskStore.read()
+    if (taskState.currentSessionId && taskState.session && taskState.larkChatId) {
+      this.logger.info("restore session: " + taskState.currentSessionId)
+      await this.selectSession(taskState.larkChatId, taskState.currentSessionId)
+    }
   }
 
   async onLarkEvent(event: LarkEvent): Promise<void> {
@@ -26,35 +43,35 @@ export class SessionService {
     this.logger.info("lark event: " + messageType)
 
     if (messageType === 'message') {
-       await this.onLarkMessage(event.payload as NormalizedMessage)
+       await this.onLarkMessage(event.payload.data, event.payload.command)
     }
     if (messageType === 'cardAction') {
-      await this.onLarkCardAction(event.payload as CardActionEvent)
+      await this.onLarkCardAction(event.payload.data)
     }
   }
 
-  async onLarkMessage(payload: Record<string, any>): Promise<void> {
-    this.logger.info({payload})
+  async onLarkMessage(data: Record<string, any>, command?: ParsedCommand): Promise<void> {
+    this.logger.info({data, command})
     const {
       chat_id: chatId,
-      chat_type: chatType,
-      content,
       message_id: messageId,
-    } = payload.message
-    if (chatType !== 'p2p') {
-      await this.lark.sendText(chatId, '当前仅支持飞书机器人私聊使用。');
-      return;
-    }
-    const text = JSON.parse(content).text
-    this.logger.info("parse command: " + text)
-    const command = parseCommand(text)
-    if (!command) {
-      await this.lark.sendText(chatId, helpText());
-      return;
-    }
-    switch (command.kind) {
+    } = data.message
+
+    switch (command?.kind) {
       case 'sessions':
-        await this.listSessions(chatId, 0, messageId, false)
+        await this.listSessions(chatId, 0, messageId, false);
+        break;
+      case 'new':
+        await this.createNewSession(chatId)
+      case 'user_message': {
+        const taskState = await this.taskStore.read()
+        if (!taskState.currentSessionId) {
+          await this.lark.sendText(chatId, helpText());
+        }
+        break;
+      }
+      default:
+        break;
     }
   }
 
@@ -64,13 +81,37 @@ export class SessionService {
       open_message_id: messageId,
       open_chat_id: chatId,
     } = payload.context
-    if (actionValue.action === 'page_sessions') {
+    if (actionValue.action === 'page_sessions' || actionValue.action === 'refresh_sessions') {
       const page = actionValue.page as number
       await this.listSessions(chatId, page ?? 0, messageId, true)
     }
     if (actionValue.action === 'view_session_detail') {
       const sessionId = actionValue.sessionId as string
       await this.getSession(chatId, sessionId, payload.operator?.user_id)
+    }
+    if (actionValue.action === 'continue_session') {
+      const sessionId = actionValue.sessionId as string
+      await this.selectSession(chatId, sessionId)
+    }
+  }
+
+  async createNewSession(chatId: string): Promise<void> {
+    const session = await this.codexController.createSession()
+    if (session) {
+      await this.lark.sendText(chatId, '会话已创建：' + session.id);
+      await this.taskStore.write({currentSessionId: session.id, larkChatId: chatId, session: session})
+    } else {
+      await this.lark.sendText(chatId, '会话创建失败');
+    }
+  }
+
+  async selectSession(chatId: string, sessionId: string): Promise<void> {
+    const session = await this.codexController.resumeSession(sessionId)
+    if (session) {
+      await this.lark.sendText(chatId, '会话已恢复：' + session.id);
+      await this.taskStore.write({currentSessionId: session.id, larkChatId: chatId, session: session})
+    } else {
+      await this.lark.sendText(chatId, '会话不存在');
     }
   }
 
@@ -84,9 +125,11 @@ export class SessionService {
     await this.lark.sendCard(chatId, card)
   }
 
-
   async listSessions(chatId: string, page: number, messageId: string, update: boolean): Promise<void> {
     const sessions = await this.codexController.listSessions();
+    sessions.forEach(session => {
+      this.logger.info(session)
+    })
     const sessionSummaries: SessionSummary[] = sessions.map(session => ({
       sessionId: session.id,
       title: session.preview.substring(0, Math.min(60, session.preview.length)) + '...',
@@ -111,14 +154,11 @@ export class SessionService {
   }
 }
 
-
 function helpText(): string {
   return [
     '可用命令：',
     '/codex sessions',
-    '/codex continue',
-    '/codex continue <你的指令>',
+    '/codex new <指令>',
     '/codex status',
-    '/codex stop',
   ].join('\n');
 }

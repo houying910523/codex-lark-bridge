@@ -2,6 +2,7 @@ import WebSocket from 'ws';
 import {Logger} from "pino";
 import {EventDispatcher, XEvent} from "../event/EventDispatcher.js";
 import {CodexProtocolError} from "../codex.js";
+import {ServerNotification} from "./protocol";
 
 export interface CodexGatewayOptions {
   wsUrl: string;
@@ -11,7 +12,7 @@ export interface CodexGatewayOptions {
 
 export interface CodexEvent extends XEvent {
   method: string;
-  data: Record<string, unknown>;
+  data?: ServerNotification;
 }
 
 type PendingRequest = {
@@ -29,7 +30,6 @@ export class CodexGateway {
   private connected = false;
   private intentionallyClosed = false;
   private readonly pendingRequests = new Map<number, PendingRequest>();
-  private connectPromise?: Promise<void>;
   private reconnectTimer?: NodeJS.Timeout;
 
   constructor(
@@ -53,6 +53,12 @@ export class CodexGateway {
           "title": "Codex VS Code Extension",
           "version": "0.1.0"
         }
+      }).then(() => {
+        this.connected = true;
+        this.eventDispatcher.publish({
+          source: 'codex-gateway',
+          method: 'initialized',
+        })
       })
     })
   }
@@ -82,21 +88,31 @@ export class CodexGateway {
     return this.connected;
   }
 
-  async send<T = unknown>(method: string, params: Record<string, unknown>): Promise<T> {
-    await this.connect();
-    const ws = this.ws;
-    if (!ws || ws.readyState !== WebSocket.OPEN) {
-      throw new CodexGatewayError('Codex WebSocket is not connected');
-    }
-
-    const id = this.nextId++;
-
+  async sendRequest(id: number, method: string, params: Record<string, unknown>): Promise<unknown> {
     const payload = JSON.stringify({
       jsonrpc: '2.0',
       id: id,
       method: method,
       params: params,
     })
+    return new Promise((resolve, reject) => {
+      this.ws?.send(payload, (error?: Error) => {
+        if (error) {
+          reject(error);
+        } else {
+          resolve(payload);
+        }
+      });
+    })
+  }
+
+  async send<T = unknown>(method: string, params: Record<string, unknown>): Promise<T> {
+    await this.connect();
+    const ws = this.ws;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      throw new CodexGatewayError('Codex WebSocket is not connected');
+    }
+    const id = this.nextId++;
 
     return new Promise<T>((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -111,36 +127,30 @@ export class CodexGateway {
         method,
         timeout,
       });
-
-      ws.send(payload, (error?: Error) => {
-        if (!error) {
-          // this.logger.info(payload)
-          return;
-        }
+      this.sendRequest(id, method, params).catch(error => {
         clearTimeout(timeout);
         this.pendingRequests.delete(id);
         reject(error);
-      });
+      })
     });
   }
 
   async onMessage(message: string): Promise<void> {
     const payload = JSON.parse(message);
     const id: number = payload.id
+    console.log(payload)
     const pending = this.pendingRequests.get(id);
-    if (!pending) {
-      return;
+    if (pending) {
+      pending.resolve(payload.result)
+      clearTimeout(pending.timeout);
+      this.pendingRequests.delete(id);
+    } else {
+      await this.eventDispatcher.publish({
+        source: 'codex-gateway',
+        method: payload.method,
+        data: payload as ServerNotification,
+      });
     }
-
-    clearTimeout(pending.timeout);
-    this.pendingRequests.delete(id);
-    // await this.eventDispatcher.publish({
-    //   source: 'codex-gateway',
-    //   method: pending.method,
-    //   data: payload,
-    // });
-    console.log(payload.result)
-    pending.resolve(payload.result)
   }
 
   private openSocket(): Promise<WebSocket> {

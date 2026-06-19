@@ -5,12 +5,14 @@ export type ParsedCommand =
   | { kind: 'status' }
   | { kind: 'stop' }
   | { kind: 'new' }
-  | { kind: 'continue'; prompt?: string; options: ContinueOptions };
+  | { kind: 'continue'; prompt?: string; options: ContinueOptions }
+  | { kind: 'user_message', message: string }
+  | { kind: 'unknown' };
 
-export function parseCommand(input: string): ParsedCommand | null {
+export function parseCommand(input: string): ParsedCommand {
   const text = input.trim();
   if (!text.startsWith('/codex')) {
-    return null;
+    return { kind: 'user_message', message: text };
   }
 
   const rest = text.slice('/codex'.length).trim();
@@ -43,5 +45,5 @@ export function parseCommand(input: string): ParsedCommand | null {
     };
   }
 
-  return null;
+  return { kind: 'unknown'};
 }

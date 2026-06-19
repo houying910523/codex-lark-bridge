@@ -7,7 +7,8 @@ export class JsonFileStore<T> {
   constructor(
     private readonly filePath: string,
     private readonly initialValue: () => T,
-  ) {}
+  ) {
+  }
 
   async read(): Promise<T> {
     if (this.cache) {
@@ -29,9 +30,7 @@ export class JsonFileStore<T> {
 
   async write(next: T): Promise<void> {
     await mkdir(path.dirname(this.filePath), { recursive: true });
-    const tmpPath = `${this.filePath}.tmp`;
-    await writeFile(tmpPath, JSON.stringify(next, null, 2));
-    await rename(tmpPath, this.filePath);
+    await writeFile(this.filePath, JSON.stringify(next, null, 2));
     this.cache = next;
   }
 

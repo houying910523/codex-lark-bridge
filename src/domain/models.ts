@@ -24,26 +24,6 @@ export interface ContinueOptions {
   planOnly: boolean;
 }
 
-export type ViewState =
-  | 'ListView'
-  | 'DetailView'
-  | 'InputView'
-  | 'RunningView'
-  | 'ConfirmationView'
-  | 'SuccessView'
-  | 'FailedView'
-  | 'CancelledView';
-
-export type TaskState =
-  | 'Pending'
-  | 'Starting'
-  | 'Running'
-  | 'WaitingDecision'
-  | 'Cancelling'
-  | 'Succeeded'
-  | 'Failed'
-  | 'Cancelled';
-
 export interface PendingDecision {
   taskId: string;
   decisionToken: string;
@@ -56,29 +36,6 @@ export interface PendingDecision {
   expireAt?: number;
   defaultOption?: string;
   createdAt: number;
-}
-
-export interface TaskRecord {
-  taskId: string;
-  sessionId: string;
-  sessionTitle?: string;
-  repo?: string;
-  branch?: string;
-  operatorId: string;
-  chatId: string;
-  messageId?: string;
-  promptDigest: string;
-  state: TaskState;
-  viewState: ViewState;
-  phase?: string;
-  summaries: string[];
-  startedAt: number;
-  endedAt?: number;
-  updatedAt: number;
-  lastSequence: number;
-  lastEventId?: string;
-  errorMessage?: string;
-  completionSummary?: string;
 }
 
 export interface UserBinding {
@@ -111,10 +68,6 @@ export interface BindingsData {
   idempotency: Record<string, IdempotencyRecord>;
 }
 
-export interface TasksData {
-  tasks: Record<string, TaskRecord>;
-}
-
 export interface DecisionsData {
   items: Record<string, PendingDecision>;
 }
@@ -143,16 +96,6 @@ export interface BridgeEvent {
   payload?: Record<string, unknown>;
 }
 
-export interface TaskSnapshot {
-  taskId: string;
-  sessionId: string;
-  state: TaskState;
-  phase?: string;
-  summary?: string;
-  errorMessage?: string;
-  sequence?: number;
-}
-
 export interface AuditEntry {
   timestamp: number;
   operatorId: string;
@@ -167,14 +110,6 @@ export const DEFAULT_CONTINUE_OPTIONS: ContinueOptions = {
   readOnly: false,
   planOnly: false,
 };
-
-export function isTerminalState(state: TaskState): boolean {
-  return state === 'Succeeded' || state === 'Failed' || state === 'Cancelled';
-}
-
-export function digestPrompt(prompt: string): string {
-  return truncate(prompt.replace(/\s+/g, ' ').trim(), 120);
-}
 
 export function truncate(value: string, maxLength: number): string {
   if (value.length <= maxLength) {

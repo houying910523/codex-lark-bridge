@@ -1,14 +1,7 @@
 import pino from 'pino';
-
-import { BridgeApplication } from './app.js';
-import { loadConfig } from './config.js';
-import { CodexWebSocketClient } from './codex.js';
-import { LarkClient } from './lark/LarkClient.js';
-import {createHttpServer, ReadinessProvider} from './server.js';
-import { AuditRepository, BindingsRepository, DecisionsRepository, TasksRepository } from './storage/repositories.js';
-import {CodexGateway} from "./codex/CodexGateway.js";
-import {EventDispatcher} from "./event/EventDispatcher.js";
-import {Application} from "./Application.js";
+import {loadConfig} from './config.js';
+import {createHttpServer} from './server.js';
+import {App} from "./app";
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -16,7 +9,7 @@ async function main(): Promise<void> {
     level: config.logLevel,
   });
 
-  const app = new Application(config, logger);
+  const app = new App(config, logger);
   const httpServer = createHttpServer(config.port, app, logger.child({ component: 'http' }));
 
   await app.start();

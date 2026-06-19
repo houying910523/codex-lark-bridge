@@ -1,4 +1,4 @@
-import type {PendingDecision, SessionSummary, TaskRecord} from '../domain/models.js';
+import type {PendingDecision, SessionSummary } from '../domain/models.js';
 import {formatDateTime, truncate} from '../domain/models.js';
 import {Thread} from "../codex/protocol/v2";
 
@@ -72,9 +72,9 @@ export function buildSessionsCard(
         markdown(renderSessionSummary(session)),
         actions([
           button('继续', {
-            action: 'open_continue',
+            action: 'continue_session',
             sessionId: session.sessionId,
-          }, 'primary'),
+          }, 'primary', session.status === 'notLoaded'),
           button('详情', {
             action: 'view_session_detail',
             sessionId: session.sessionId,
@@ -98,9 +98,11 @@ export function buildSessionsCard(
 }
 
 export function buildSessionDetailCard(session: Thread, userId: string): object {
-  let firstUserMessage: Array<object> = [];
-  let lastAgentMessage: Array<object> = [];
+
+  const turns: object[] = []
   session.turns.forEach(turn => {
+    let firstUserMessage: Array<object> = [];
+    let lastAgentMessage: Array<object> = [];
     turn.items.forEach(item => {
       if (item.type === 'agentMessage') {
         lastAgentMessage = [
@@ -121,6 +123,11 @@ export function buildSessionDetailCard(session: Thread, userId: string): object 
         })
       }
     })
+    turns.push(
+      ...firstUserMessage,
+      ...lastAgentMessage,
+      divider(),
+    )
   })
   return card({
     title: `会话详情: ${session.preview.substring(0, Math.min(40, session.preview.length))}`,
@@ -134,10 +141,9 @@ export function buildSessionDetailCard(session: Thread, userId: string): object 
         `**最近活跃**: ${new Date(session.updatedAt * 1000).toLocaleString()}`,
         `**状态**: ${session.status.type}`,
       ].join('\n')),
-      ...firstUserMessage,
-      ...lastAgentMessage,
+      ...turns,
       actions([
-        button('继续这个会话', { action: 'open_continue', sessionId: session.id }, 'primary'),
+        button('继续这个会话', { action: 'continue_session', sessionId: session.id }, 'primary'),
         button('返回列表', { action: 'refresh_sessions', page: 0 }),
       ]),
     ],
@@ -201,103 +207,6 @@ export function buildContinueCard(session: SessionSummary): object {
   });
 }
 
-export function buildRunningCard(task: TaskRecord): object {
-  return card({
-    title: `正在执行: ${task.sessionTitle ?? task.sessionId}`,
-    template: NEUTRAL,
-    elements: [
-      markdown(renderTaskMeta(task)),
-      markdown(renderSummaryList(task.summaries, '最近输出')),
-      actions([
-        button('刷新输出', { action: 'refresh_task', taskId: task.taskId }),
-        button('停止执行', { action: 'stop_task', taskId: task.taskId }, 'danger'),
-      ]),
-    ],
-  });
-}
-
-export function buildConfirmationCard(task: TaskRecord, decision: PendingDecision): object {
-  return card({
-    title: `等待确认: ${task.sessionTitle ?? task.sessionId}`,
-    template: DANGER,
-    elements: [
-      markdown(renderTaskMeta(task)),
-      markdown([
-        `**确认项**: ${decision.title}`,
-        decision.description ? `**说明**: ${decision.description}` : undefined,
-        decision.expireAt ? `**超时**: ${formatDateTime(decision.expireAt)}` : undefined,
-      ].filter(Boolean).join('\n')),
-      actions(
-        decision.options.map((option) =>
-          button(option.label, {
-            action: 'submit_decision',
-            taskId: task.taskId,
-            decisionToken: decision.decisionToken,
-            option: option.value,
-          }, option.value === decision.defaultOption ? 'primary' : undefined),
-        ),
-      ),
-    ],
-  });
-}
-
-export function buildTerminalCard(task: TaskRecord): object {
-  const template = task.state === 'Succeeded' ? SUCCESS : task.state === 'Failed' ? DANGER : NEUTRAL;
-  const summary = task.completionSummary ?? task.errorMessage ?? task.summaries.at(-1) ?? '暂无摘要';
-
-  return card({
-    title: `执行${terminalTitle(task.state)}: ${task.sessionTitle ?? task.sessionId}`,
-    template,
-    elements: [
-      markdown(renderTaskMeta(task)),
-      markdown(`**结果摘要**\n${summary}`),
-      markdown(renderSummaryList(task.summaries, '最近摘要')),
-      actions([
-        button('继续追问', { action: 'open_continue', sessionId: task.sessionId }, 'primary'),
-        button('返回列表', { action: 'refresh_sessions', page: 0 }),
-      ]),
-    ],
-  });
-}
-
-export function buildStatusCard(task: TaskRecord): object {
-  if (task.viewState === 'ConfirmationView') {
-    return buildRunningCard(task);
-  }
-
-  if (task.viewState === 'SuccessView' || task.viewState === 'FailedView' || task.viewState === 'CancelledView') {
-    return buildTerminalCard(task);
-  }
-
-  return buildRunningCard(task);
-}
-
-function terminalTitle(state: TaskRecord['state']): string {
-  switch (state) {
-    case 'Succeeded':
-      return '完成';
-    case 'Failed':
-      return '失败';
-    case 'Cancelled':
-      return '已停止';
-    default:
-      return state;
-  }
-}
-
-function renderTaskMeta(task: TaskRecord): string {
-  return [
-    `**Task ID**: \`${task.taskId}\``,
-    `**会话**: ${task.sessionTitle ?? task.sessionId}`,
-    `**Repo**: ${task.repo ?? '-'}`,
-    `**Branch**: ${task.branch ?? '-'}`,
-    `**状态**: ${task.state}`,
-    `**阶段**: ${task.phase ?? '-'}`,
-    `**开始时间**: ${formatDateTime(task.startedAt)}`,
-    `**Prompt 摘要**: ${task.promptDigest}`,
-  ].join('\n');
-}
-
 function renderSessionSummary(session: SessionSummary): string {
   return [
     `摘要: **${session.title}**`,
@@ -305,13 +214,6 @@ function renderSessionSummary(session: SessionSummary): string {
     `最近活跃: ${session.lastActiveAt}`,
     `workspace: ${session.workspace ?? '-'}`,
   ].join('\n');
-}
-
-function renderSummaryList(items: string[], title: string): string {
-  const content = items.length > 0
-    ? items.map((item) => `- ${truncate(item, 180)}`).join('\n')
-    : '- 暂无';
-  return `**${title}**\n${content}`;
 }
 
 function person(name: string): object {

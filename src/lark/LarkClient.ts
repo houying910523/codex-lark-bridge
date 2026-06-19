@@ -2,10 +2,14 @@ import { WSClient, EventDispatcher as LarkInnerDispatcher, Client } from "@larks
 import {AppConfig} from "../config.js";
 import {EventDispatcher, XEvent} from "../event/EventDispatcher.js";
 import {Logger} from "pino";
+import {parseCommand, ParsedCommand} from "../domain/commands";
 
 export interface LarkEvent extends XEvent {
   type: 'message' | 'cardAction';
-  payload: unknown;
+  payload: {
+    data: Record<string, any>,
+    command?: ParsedCommand
+  };
 }
 
 export class LarkClient {
@@ -34,19 +38,35 @@ export class LarkClient {
   async start(): Promise<void> {
     const larkInnerDispatcher = new LarkInnerDispatcher({}).register({
       "card.action.trigger": async (data: unknown) => {
-        console.log(data);
         return this.eventDispatcher.publish({
           source: 'lark',
           type: 'cardAction',
-          payload: data,
+          payload: {
+            data: data as Record<string, any>
+          },
         })
       },
       "im.message.receive_v1": async (data) => {
-        console.log(data);
+        this.logger.info({data})
+        const {
+          chat_id: chatId,
+          chat_type: chatType,
+          content,
+        } = data.message
+        if (chatType !== 'p2p') {
+          await this.sendText(chatId, '当前仅支持飞书机器人私聊使用。');
+          return;
+        }
+        const text = JSON.parse(content).text
+        const command = parseCommand(text)
+        this.logger.info(command, "parse command")
         return this.eventDispatcher.publish({
           source: 'lark',
           type: 'message',
-          payload: data,
+          payload: {
+            data: data,
+            command
+          },
         })
       }
     });
@@ -73,11 +93,10 @@ export class LarkClient {
         content: JSON.stringify({text: text}),
       },
     })
-    return new Promise((resolve) => resolve(res.data?.message_id || ''));
+    return res.data?.message_id || '';
   }
 
   async sendCard(chatId: string, card: object): Promise<string> {
-    console.log(JSON.stringify(card))
     return this.httpClient.im.message.create({
       params: {
         receive_id_type: 'chat_id',
@@ -93,7 +112,6 @@ export class LarkClient {
   }
 
   async updateCard(messageId: string, card: object): Promise<void> {
-    console.log(JSON.stringify({content: JSON.stringify(card)}))
     return this.httpClient.im.message.patch({
       path: {
         message_id: messageId,

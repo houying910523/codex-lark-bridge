@@ -1,11 +1,13 @@
 import type { CodexGateway } from './CodexGateway.js';
 import {Logger} from "pino";
-import {Thread} from "./protocol/v2";
+import {Thread, Turn} from "./protocol/v2";
+import {AppConfig} from "../config";
 
 export class CodexController {
   constructor(
-    protected readonly gateway: CodexGateway,
-    protected readonly logger: Logger
+    private readonly config: AppConfig['controller'],
+    private readonly gateway: CodexGateway,
+    private readonly logger: Logger
   ) {}
 
   async listSessions(): Promise<Thread[]> {
@@ -25,5 +27,33 @@ export class CodexController {
         return turn
       })
     return thread;
+  }
+
+  async resumeSession(sessionId: string): Promise<Thread> {
+    const result: { thread: Thread } = await this.gateway.send('thread/resume', {
+      threadId: sessionId,
+    });
+    return result.thread
+  }
+
+  async createSession(): Promise<Thread> {
+    const result: { thread: Thread } = await this.gateway.send('thread/start', {
+      cwd: this.config.cwd,
+      source: this.config.source
+    })
+    return result.thread
+  }
+
+  async sendUserMessage(sessionId: string, message: string): Promise<Turn> {
+    const result: { turn: Turn } = await this.gateway.send('turn/start', {
+      threadId: sessionId,
+      input: [
+        {
+          type: 'text',
+          text: message,
+        },
+      ]
+    });
+    return result.turn
   }
 }
