@@ -5,7 +5,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "node --watch --env-file-if-exists=.env --import tsx src/index.ts",
-    "start": "node dist/src/index.js",
+    "start": "node --env-file-if-exists=.env dist/src/index.js",
     "test": "node --test --import tsx test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
