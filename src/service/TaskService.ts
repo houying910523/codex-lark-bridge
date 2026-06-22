@@ -1,17 +1,18 @@
 import {CodexController} from "../codex/CodexController";
 import {Logger} from "pino";
 import {CodexEvent} from "../codex/CodexGateway";
-import {LarkClient, LarkEvent} from "../lark/LarkClient";
+import LarkClient, {LarkEvent} from "../lark/LarkClient";
 import {
   type AgentMessageDeltaNotification, ErrorNotification,
   ItemCompletedNotification,
-  ItemStartedNotification, ThreadItem, ThreadStartedNotification,
+  ItemStartedNotification, McpToolCall, ThreadItem, ThreadStartedNotification,
   ThreadStatusChangedNotification, TurnCompletedNotification,
   TurnStartedNotification
 } from "../codex/protocol/v2";
 import {TaskState, TaskStore} from "../storage/TaskStore";
 import {ParsedCommand} from "../domain/commands";
 import {EventDispatcher} from "../event/EventDispatcher";
+import {buildCommandExecution, buildMcpToolCallCard, textCard} from "../lark/LarkCard";
 
 export class TaskService {
   constructor(
@@ -158,7 +159,7 @@ export class TaskService {
       case 'agentMessage':
       case 'plan':
         if (currentCompletedItem.text) {
-          await this.lark.sendText(taskState.larkChatId, currentCompletedItem.text)
+          await this.lark.sendCard(taskState.larkChatId, textCard(currentCompletedItem.text))
         }
         break;
       case 'reasoning': {
@@ -172,8 +173,10 @@ export class TaskService {
         break;
       }
       case 'mcpToolCall':
+        await this.lark.sendCard(taskState.larkChatId, buildMcpToolCallCard(currentCompletedItem))
         break;
       case 'commandExecution':
+        await this.lark.sendCard(taskState.larkChatId, buildCommandExecution(currentCompletedItem))
         break;
       default:
         break;

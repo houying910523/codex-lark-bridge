@@ -1,4 +1,4 @@
-import {LarkClient, LarkEvent} from "./lark/LarkClient";
+import LarkClient, {LarkEvent} from "./lark/LarkClient";
 import {CodexEvent, CodexGateway} from "./codex/CodexGateway";
 import {Logger} from "pino";
 import {AppConfig} from "./config";

@@ -12,7 +12,20 @@ export interface LarkEvent extends XEvent {
   };
 }
 
-export class LarkClient {
+type PostMessage = {
+  title: string,
+  content: [
+    [
+      {
+        tag: string,
+        text: string,
+      }
+    ]
+  ]
+}
+type MessageHandler = (content: any) => string
+
+class LarkClient {
   private readonly wsClient: WSClient;
   private readonly httpClient: Client;
   private connected = false;
@@ -52,12 +65,13 @@ export class LarkClient {
           chat_id: chatId,
           chat_type: chatType,
           content,
+          message_type: messageType,
         } = data.message
         if (chatType !== 'p2p') {
           await this.sendText(chatId, '当前仅支持飞书机器人私聊使用。');
           return;
         }
-        const text = JSON.parse(content).text
+        const text = this.getMessageByType(messageType)(JSON.parse(content))
         const command = parseCommand(text)
         this.logger.info(command, "parse command")
         return this.eventDispatcher.publish({
@@ -71,6 +85,23 @@ export class LarkClient {
       }
     });
     await this.wsClient.start({eventDispatcher: larkInnerDispatcher})
+  }
+
+  getMessageByType(messageType: string): MessageHandler {
+    if (messageType === 'text') {
+      return (content) => content.text as string
+    }
+    if (messageType === 'post') {
+      return (content: PostMessage) => {
+        return content.content.map(line => {
+          return line.map(item => {
+            console.log(item.text)
+            return item.text
+          }).join(' ')
+        }).join('\n')
+      }
+    }
+    throw new Error("unrecognised message type: " + messageType)
   }
 
   async stop(): Promise<void> {
@@ -124,3 +155,5 @@ export class LarkClient {
     });
   }
 }
+
+export default LarkClient

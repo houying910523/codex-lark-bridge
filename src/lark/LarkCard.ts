@@ -1,6 +1,5 @@
-import type {PendingDecision, SessionSummary } from '../domain/models.js';
-import {formatDateTime, truncate} from '../domain/models.js';
-import {Thread} from "../codex/protocol/v2";
+import type {SessionSummary} from '../domain/models';
+import {Thread, McpToolCall, CommandExecution} from "../codex/protocol/v2";
 
 const PRIMARY = 'blue';
 const SUCCESS = 'green';
@@ -150,61 +149,60 @@ export function buildSessionDetailCard(session: Thread, userId: string): object 
   });
 }
 
-export function buildContinueCard(session: SessionSummary): object {
+export function buildMcpToolCallCard(mcpToolCall: McpToolCall): object {
+
   return card({
-    title: `继续会话: ${session.title}`,
+    title: `MCP调用 ${mcpToolCall.server} - ${mcpToolCall.tool}`,
     template: PRIMARY,
     elements: [
       markdown([
-        '填写下面的输入框后点击动作按钮。如果飞书卡片表单字段未成功回传，也可以直接发送：',
-        `\`/codex continue <你的指令>\``,
-      ].join('\n')),
-      {
-        tag: 'input',
-        name: 'prompt',
-        label: {
-          tag: 'plain_text',
-          content: '下一步指令',
-        },
-        required: true,
-        multiline: true,
-        placeholder: {
-          tag: 'plain_text',
-          content: '例如：请分析失败原因并给出修复方案',
-        },
-      },
-      actions([
-        button('开始执行', {
-          action: 'submit_continue',
-          sessionId: session.sessionId,
-          options: {
-            syncLatest: false,
-            readOnly: false,
-            planOnly: false,
-          },
-        }, 'primary'),
-        button('只给建议', {
-          action: 'submit_continue',
-          sessionId: session.sessionId,
-          options: {
-            syncLatest: false,
-            readOnly: true,
-            planOnly: false,
-          },
-        }),
-        button('先看计划', {
-          action: 'submit_continue',
-          sessionId: session.sessionId,
-          options: {
-            syncLatest: false,
-            readOnly: false,
-            planOnly: true,
-          },
-        }),
-        button('返回列表', { action: 'refresh_sessions', page: 0 }),
-      ]),
-    ],
-  });
+        '**Input Arguments**',
+        code('json', JSON.stringify(mcpToolCall.arguments, undefined, 2)),
+        '**Output**',
+        code('json', JSON.stringify(mcpToolCall.result, undefined, 2)),
+      ].join('\n'))
+    ]
+  })
+}
+
+export function buildCommandExecution(command: CommandExecution): object {
+
+  return card({
+    title: `命令调用 ${command.command}`,
+    template: PRIMARY,
+    elements: [
+      markdown(
+        code(
+          'bash',
+          command.commandActions.map(action => {
+            return action.command
+          }).join('\n')
+        )
+      )
+    ]
+  })
+}
+
+export function textCard(content: string): object {
+  return {
+    config: {
+      update_multi: true,
+      width_mode: 'default',
+    },
+    i18n_elements: {
+      zh_cn: [
+        markdown(content)
+      ],
+    },
+  }
+}
+
+function code(type: string, content: string): string {
+  return [
+    '```' + type,
+    content,
+    '```'
+  ].join('\n')
 }
 
 function renderSessionSummary(session: SessionSummary): string {

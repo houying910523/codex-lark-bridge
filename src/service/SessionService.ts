@@ -1,6 +1,6 @@
 import {CodexController} from "../codex/CodexController";
 import {Logger} from "pino";
-import {LarkClient, LarkEvent} from "../lark/LarkClient";
+import LarkClient, {LarkEvent} from "../lark/LarkClient";
 import {ParsedCommand} from "../domain/commands";
 import {buildSessionDetailCard, buildSessionsCard} from "../lark/LarkCard";
 import {SessionSummary} from "../domain/models";

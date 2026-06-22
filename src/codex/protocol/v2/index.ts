@@ -1,5 +1,7 @@
 // GENERATED CODE! DO NOT MODIFY BY HAND!
 
+import {CommandExecution} from "./ThreadItem";
+
 export type { Account } from "./Account";
 export type { AccountLoginCompletedNotification } from "./AccountLoginCompletedNotification";
 export type { AccountRateLimitsUpdatedNotification } from "./AccountRateLimitsUpdatedNotification";
@@ -54,6 +56,7 @@ export type { CommandExecTerminateParams } from "./CommandExecTerminateParams";
 export type { CommandExecTerminateResponse } from "./CommandExecTerminateResponse";
 export type { CommandExecWriteParams } from "./CommandExecWriteParams";
 export type { CommandExecWriteResponse } from "./CommandExecWriteResponse";
+export type { CommandExecution } from "./ThreadItem";
 export type { CommandExecutionApprovalDecision } from "./CommandExecutionApprovalDecision";
 export type { CommandExecutionOutputDeltaNotification } from "./CommandExecutionOutputDeltaNotification";
 export type { CommandExecutionRequestApprovalParams } from "./CommandExecutionRequestApprovalParams";
@@ -229,6 +232,7 @@ export type { McpServerStatusDetail } from "./McpServerStatusDetail";
 export type { McpServerStatusUpdatedNotification } from "./McpServerStatusUpdatedNotification";
 export type { McpServerToolCallParams } from "./McpServerToolCallParams";
 export type { McpServerToolCallResponse } from "./McpServerToolCallResponse";
+export type { McpToolCall } from './ThreadItem';
 export type { McpToolCallError } from "./McpToolCallError";
 export type { McpToolCallProgressNotification } from "./McpToolCallProgressNotification";
 export type { McpToolCallResult } from "./McpToolCallResult";

@@ -23,7 +23,7 @@ import type { PatchApplyStatus } from "./PatchApplyStatus";
 import type { UserInput } from "./UserInput";
 import type { WebSearchAction } from "./WebSearchAction";
 
-type CommandExecution = {
+export type CommandExecution = {
 
   "type": "commandExecution",
 
@@ -60,7 +60,7 @@ type CommandExecution = {
   durationMs: number | null,
 }
 
-type McpToolCall = {
+export type McpToolCall = {
   "type": "mcpToolCall",
   id: string,
   server: string,
