@@ -111,7 +111,6 @@ export class CodexGateway {
       response.result = result;
     }
     const payload = JSON.stringify(response)
-    this.logger.info(payload)
     return new Promise((resolve, reject) => {
       this.ws?.send(payload, (error?: Error) => {
         if (error) {
@@ -155,13 +154,13 @@ export class CodexGateway {
   async onMessage(message: string): Promise<void> {
     const payload = JSON.parse(message);
     const id: number = payload.id
-    console.log(payload)
     const pending = this.pendingRequests.get(id);
     if (pending) {
       pending.resolve(payload.result)
       clearTimeout(pending.timeout);
       this.pendingRequests.delete(id);
     } else {
+      this.logger.info({message: payload})
       await this.eventDispatcher.publish({
         source: 'codex-gateway',
         method: payload.method,

@@ -40,7 +40,6 @@ export class SessionService {
   async onLarkEvent(event: LarkEvent): Promise<void> {
     this.logger.info(event)
     const messageType = event.type
-    this.logger.info("lark event: " + messageType)
 
     if (messageType === 'message') {
        await this.onLarkMessage(event.payload.data, event.payload.command)
@@ -127,9 +126,6 @@ export class SessionService {
 
   async listSessions(chatId: string, page: number, messageId: string, update: boolean): Promise<void> {
     const sessions = await this.codexController.listSessions();
-    sessions.forEach(session => {
-      this.logger.info(session)
-    })
     const sessionSummaries: SessionSummary[] = sessions.map(session => ({
       sessionId: session.id,
       title: session.preview.substring(0, Math.min(60, session.preview.length)) + '...',

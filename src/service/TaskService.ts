@@ -45,7 +45,6 @@ export class TaskService {
   }
 
   async onLarkMessage(data: Record<string, any>, command?: ParsedCommand): Promise<void> {
-    this.logger.info({data, command})
     const taskState = await this.taskStore.read()
     if (!taskState.currentSessionId) {
       return;
@@ -57,7 +56,6 @@ export class TaskService {
   }
 
   async onCodexEvent(event: CodexEvent): Promise<void> {
-    this.logger.info(event)
     const { method, data } = event
     if (!data) {
       return;

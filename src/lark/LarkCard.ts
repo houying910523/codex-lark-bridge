@@ -57,9 +57,6 @@ export function buildSessionsCard(
 ): object {
   const start = page * pageSize;
   const pageItems = sessions.slice(start, start + pageSize);
-  pageItems.forEach(session => {
-    console.log(session.title)
-  })
   const maxPage = Math.max(0, Math.ceil(sessions.length / pageSize) - 1);
 
   return card({

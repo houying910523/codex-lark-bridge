@@ -60,7 +60,7 @@ class LarkClient {
         })
       },
       "im.message.receive_v1": async (data) => {
-        this.logger.info({data})
+        this.logger.info(data)
         const {
           chat_id: chatId,
           chat_type: chatType,
@@ -95,7 +95,6 @@ class LarkClient {
       return (content: PostMessage) => {
         return content.content.map(line => {
           return line.map(item => {
-            console.log(item.text)
             return item.text
           }).join(' ')
         }).join('\n')
