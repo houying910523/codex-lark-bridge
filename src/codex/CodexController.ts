@@ -56,4 +56,8 @@ export class CodexController {
     });
     return result.turn
   }
+
+  async responseApproval(requestId: number, response: Record<string, unknown>): Promise<void> {
+    await this.gateway.sendRequest(requestId, undefined, undefined, response)
+  }
 }

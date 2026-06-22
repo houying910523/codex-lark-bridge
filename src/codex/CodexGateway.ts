@@ -1,7 +1,6 @@
 import WebSocket from 'ws';
 import {Logger} from "pino";
 import {EventDispatcher, XEvent} from "../event/EventDispatcher.js";
-import {ServerNotification} from "./protocol";
 
 export class CodexProtocolError extends Error {}
 
@@ -13,7 +12,15 @@ export interface CodexGatewayOptions {
 
 export interface CodexEvent extends XEvent {
   method: string;
-  data?: ServerNotification;
+  data?: Record<string, any>;
+}
+
+type CodexRequest = {
+  jsonrpc: string;
+  id: number;
+  params?: Record<string, unknown>;
+  method?: string;
+  result?: Record<string, any>;
 }
 
 type PendingRequest = {
@@ -89,13 +96,22 @@ export class CodexGateway {
     return this.connected;
   }
 
-  async sendRequest(id: number, method: string, params: Record<string, unknown>): Promise<unknown> {
-    const payload = JSON.stringify({
+  async sendRequest(id: number, method?: string, params?: Record<string, unknown>, result?: Record<string, any>): Promise<unknown> {
+    const response: CodexRequest = {
       jsonrpc: '2.0',
       id: id,
-      method: method,
-      params: params,
-    })
+    }
+    if (method) {
+      response.method = method;
+    }
+    if (params) {
+      response.params = params;
+    }
+    if (result) {
+      response.result = result;
+    }
+    const payload = JSON.stringify(response)
+    this.logger.info(payload)
     return new Promise((resolve, reject) => {
       this.ws?.send(payload, (error?: Error) => {
         if (error) {
@@ -107,13 +123,13 @@ export class CodexGateway {
     })
   }
 
-  async send<T = unknown>(method: string, params: Record<string, unknown>): Promise<T> {
+  async send<T = unknown>(method: string, params: Record<string, unknown>, responseId?: number): Promise<T> {
     await this.connect();
     const ws = this.ws;
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       throw new CodexGatewayError('Codex WebSocket is not connected');
     }
-    const id = this.nextId++;
+    const id = responseId ?? this.nextId++;
 
     return new Promise<T>((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -149,7 +165,7 @@ export class CodexGateway {
       await this.eventDispatcher.publish({
         source: 'codex-gateway',
         method: payload.method,
-        data: payload as ServerNotification,
+        data: payload,
       });
     }
   }

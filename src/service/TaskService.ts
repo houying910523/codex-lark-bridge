@@ -3,16 +3,24 @@ import {Logger} from "pino";
 import {CodexEvent} from "../codex/CodexGateway";
 import LarkClient, {LarkEvent} from "../lark/LarkClient";
 import {
-  type AgentMessageDeltaNotification, ErrorNotification,
+  type AgentMessageDeltaNotification,
+  ErrorNotification,
+  type FileChangeApprovalDecision,
+  type FileChangeRequestApprovalParams,
   ItemCompletedNotification,
-  ItemStartedNotification, McpToolCall, ThreadItem, ThreadStartedNotification,
-  ThreadStatusChangedNotification, TurnCompletedNotification,
+  ItemStartedNotification,
+  McpToolCall,
+  ThreadItem,
+  ThreadStartedNotification,
+  ThreadStatusChangedNotification,
+  TurnCompletedNotification,
   TurnStartedNotification
 } from "../codex/protocol/v2";
 import {TaskState, TaskStore} from "../storage/TaskStore";
 import {ParsedCommand} from "../domain/commands";
 import {EventDispatcher} from "../event/EventDispatcher";
 import {buildCommandExecution, buildMcpToolCallCard, textCard} from "../lark/LarkCard";
+import {ServerRequest} from "../codex/protocol";
 
 export class TaskService {
   constructor(
@@ -140,6 +148,14 @@ export class TaskService {
         taskState.turn?.id === notification.turnId,
         taskState.activeItem?.id === notification.item.id
       )
+    }
+
+    if (method === 'item/fileChange/requestApproval') {
+      const request = data as ServerRequest
+      // const fileChangeRequest = data.params as FileChangeRequestApprovalParams
+      await this.codexController.responseApproval(request.id as number, {
+        decision: "accept"
+      })
     }
 
     if (method === 'error') {
