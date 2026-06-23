@@ -39,7 +39,7 @@ export class CodexController {
   async createSession(): Promise<Thread> {
     const result: { thread: Thread } = await this.gateway.send('thread/start', {
       cwd: this.config.cwd,
-      source: this.config.source
+      source: 'appServer'
     })
     return result.thread
   }

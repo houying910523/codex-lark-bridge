@@ -55,13 +55,7 @@ export class CodexGateway {
     this.intentionallyClosed = false;
     this.openSocket().then(ws => {
       this.ws = ws;
-      this.send("initialize", {
-        "clientInfo": {
-          "name": "codex_vscode",
-          "title": "Codex VS Code Extension",
-          "version": "0.1.0"
-        }
-      }).then(() => {
+      this.send("initialize", this.buildInitializeMessage()).then(() => {
         this.connected = true;
         this.eventDispatcher.publish({
           source: 'codex-gateway',
@@ -195,6 +189,7 @@ export class CodexGateway {
 
       ws.on('close', () => {
         this.connected = false;
+        this.ws = undefined;
         this.logger.warn('Codex WebSocket closed');
         if (!this.intentionallyClosed) {
           this.scheduleReconnect();
@@ -230,5 +225,30 @@ export class CodexGateway {
     }
 
     return payload.toString('utf8');
+  }
+
+  private buildInitializeMessage(): Record<string, unknown> {
+    return {
+      "clientInfo": {
+        "name": "codex_vscode",
+        "title": "Codex VS Code Extension",
+        "version": "0.1.0"
+      },
+      "capabilities": {
+        "experimentalApi": true,
+        "requestAttestation": false,
+        "optOutNotificationMethods": [
+          "thread/status/changed",
+            "thread/started",
+            "turn/started",
+            "item/started",
+            "item/completed",
+            "item/agentMessage/delta",
+            "item/fileChange/requestApproval",
+          "item/plan/delta",
+            "error",
+        ]
+      }
+    }
   }
 }
