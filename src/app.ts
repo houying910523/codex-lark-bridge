@@ -1,13 +1,16 @@
 import LarkClient, {LarkEvent} from "./lark/LarkClient";
 import {CodexEvent, CodexGateway} from "./codex/CodexGateway";
-import {Logger} from "pino";
+import pino, {Logger} from "pino";
 import {AppConfig} from "./config";
 import {EventDispatcher} from "./event/EventDispatcher";
 import {CodexController} from "./codex/CodexController";
 import {SessionService} from "./service/SessionService";
 import {TaskService} from "./service/TaskService";
 import {TaskStore} from "./storage/TaskStore";
+import {CodexWebSocketGateway} from "./codex/CodexWebSocketGateway";
+import {CodexSocketFileGateway} from "./codex/CodexSocketFileGateway";
 
+type CodexGatewayConstructor = new (options: AppConfig['codex'], dispatcher: EventDispatcher<CodexEvent>, logger: Logger) => CodexGateway;
 
 export class App {
   private started = false;
@@ -23,11 +26,19 @@ export class App {
   ) {
     this.logger = logger.child({ component: 'application' });
     const codexEventDispatcher = new EventDispatcher<CodexEvent>(logger.child({ component: 'codex-event-dispatcher' }));
-    this.codex = new CodexGateway(
-      config.codex,
-      codexEventDispatcher,
-      logger.child({ component: 'codex-gateway' })
-    );
+    let CodexType: CodexGatewayConstructor;
+    if (config.codex.type === 'websocket') {
+      CodexType = CodexWebSocketGateway
+    } else if (config.codex.type === 'socket') {
+      CodexType = CodexSocketFileGateway
+    } else {
+      throw new Error('unsupported codex_connect_type: ' + config.codex.type)
+    }
+    this.codex = new CodexType(
+        config.codex,
+        codexEventDispatcher,
+        logger.child({ component: 'codex-gateway' })
+    )
 
     const codexController = new CodexController(
       config.controller,

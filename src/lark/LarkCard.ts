@@ -1,5 +1,5 @@
 import type {SessionSummary} from '../domain/models';
-import {Thread, McpToolCall, CommandExecution} from "../codex/protocol/v2";
+import {Thread, McpToolCall, CommandExecution, TurnPlanUpdatedNotification} from "../codex/protocol/v2";
 
 const PRIMARY = 'blue';
 const SUCCESS = 'green';
@@ -177,6 +177,25 @@ export function buildCommandExecution(command: CommandExecution): object {
         )
       )
     ]
+  })
+}
+
+export function buildTurnPlanCard(notification: TurnPlanUpdatedNotification): object {
+  const elements: object[] = []
+  if (notification.explanation) {
+    elements.push(markdown(`**${notification.explanation}**`))
+  }
+  notification.plan.forEach(plan => {
+    elements.push(
+        markdown(
+            `[${plan.status}] ${plan.step}`
+        )
+    )
+  })
+  return card({
+    title: '执行计划',
+    template: PRIMARY,
+    elements: elements,
   })
 }
 

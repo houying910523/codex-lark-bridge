@@ -14,9 +14,11 @@ const envSchema = z.object({
   LARK_APP_ID: z.string().trim().min(1, 'LARK_APP_ID is required'),
   LARK_APP_SECRET: z.string().trim().min(1, 'LARK_APP_SECRET is required'),
   LARK_DOMAIN: z.string().trim().optional(),
-  CODEX_WS_URL: wsUrlSchema,
+  CODEX_WS_URL: wsUrlSchema.optional(),
   CODEX_WS_HANDSHAKE_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
   CODEX_WS_RECONNECT_MS: z.coerce.number().int().positive().default(3_000),
+  CODEX_SOCKET_FILE: z.string().trim().optional(),
+  CODEX_CONNECT_TYPE: z.enum(['websocket', 'socket']).default('websocket'),
   OUTPUT_THROTTLE_MS: z.coerce.number().int().positive().default(3_000),
 
   CODEX_SESSION_CWD: z.string().trim().optional(),
@@ -34,7 +36,9 @@ export interface AppConfig {
     domain?: string;
   };
   codex: {
-    wsUrl: string;
+    type: 'websocket' | 'socket';
+    wsUrl?: string;
+    socketFile?: string;
     handshakeTimeoutMs: number;
     reconnectMs: number;
   };
@@ -59,7 +63,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
       domain: parsed.LARK_DOMAIN,
     },
     codex: {
+      type: parsed.CODEX_CONNECT_TYPE,
       wsUrl: parsed.CODEX_WS_URL,
+      socketFile: parsed.CODEX_SOCKET_FILE,
       handshakeTimeoutMs: parsed.CODEX_WS_HANDSHAKE_TIMEOUT_MS,
       reconnectMs: parsed.CODEX_WS_RECONNECT_MS,
     },

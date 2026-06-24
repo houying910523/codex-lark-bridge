@@ -40,9 +40,10 @@ export class EventDispatcher<T extends XEvent> {
 
     for (const handler of handlers) {
       try {
-        queueMicrotask(
-          () => handler(event)
-        )
+        // queueMicrotask(
+        //   () => handler(event)
+        // )
+        await handler(event)
       } catch (error) {
         console.error(error);
         this.logger.error({ error, event, caller: handler.name }, "Event handler failed");

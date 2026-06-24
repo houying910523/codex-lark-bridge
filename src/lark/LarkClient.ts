@@ -87,7 +87,7 @@ class LarkClient {
     await this.wsClient.start({eventDispatcher: larkInnerDispatcher})
   }
 
-  getMessageByType(messageType: string): MessageHandler {
+  private getMessageByType(messageType: string): MessageHandler {
     if (messageType === 'text') {
       return (content) => content.text as string
     }
@@ -142,6 +142,9 @@ class LarkClient {
   }
 
   async updateCard(messageId: string, card: object): Promise<void> {
+    if (!messageId) {
+      return
+    }
     return this.httpClient.im.message.patch({
       path: {
         message_id: messageId,
@@ -151,6 +154,42 @@ class LarkClient {
       }
     }).then(res => {
         this.logger.info({result: res}, 'update card')
+    });
+  }
+
+  async addEmoji(messageId: string, emoji: string): Promise<string> {
+    return await this.httpClient.im.v1.messageReaction.create({
+          path: {
+            message_id: messageId,
+          },
+          data: {
+            reaction_type: {
+              emoji_type: emoji,
+            },
+          },
+        },
+    ).then(res => {
+      this.logger.info(res);
+      return res.data?.reaction_id || ''
+    }).catch(e => {
+      this.logger.error(e.response.data);
+      return ''
+    });
+  }
+
+  async deleteEmoji(messageId: string, reaction_id?: string): Promise<void> {
+    if (!reaction_id) {
+      return
+    }
+    return await this.httpClient.im.v1.messageReaction.delete({
+      path: {
+        message_id: messageId,
+        reaction_id: reaction_id
+      },
+    }).then(res => {
+      this.logger.info(res);
+    }).catch(e => {
+      this.logger.error(e.response.data);
     });
   }
 }

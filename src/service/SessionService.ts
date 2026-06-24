@@ -31,10 +31,11 @@ export class SessionService {
 
   async restoreSession(): Promise<void> {
     const taskState = await this.taskStore.read()
-    if (taskState.currentSessionId && taskState.session && taskState.larkChatId) {
-      this.logger.info("restore session: " + taskState.currentSessionId)
-      await this.selectSession(taskState.larkChatId, taskState.currentSessionId)
+    if (!taskState.currentSessionId || !taskState.session || !taskState.lark) {
+      return
     }
+    this.logger.info("restore session: " + taskState.currentSessionId)
+    await this.selectSession(taskState.lark.chatId, taskState.currentSessionId)
   }
 
   async onLarkEvent(event: LarkEvent): Promise<void> {
@@ -61,7 +62,8 @@ export class SessionService {
         await this.listSessions(chatId, 0, messageId, false);
         break;
       case 'new':
-        await this.createNewSession(chatId)
+        await this.createNewSession(chatId, messageId)
+        break;
       case 'user_message': {
         const taskState = await this.taskStore.read()
         if (!taskState.currentSessionId) {
@@ -94,11 +96,18 @@ export class SessionService {
     }
   }
 
-  async createNewSession(chatId: string): Promise<void> {
+  async createNewSession(chatId: string, messageId: string): Promise<void> {
     const session = await this.codexController.createSession()
     if (session) {
       await this.lark.sendText(chatId, '会话已创建：' + session.id);
-      await this.taskStore.write({currentSessionId: session.id, larkChatId: chatId, session: session})
+      await this.taskStore.write({
+        currentSessionId: session.id,
+        lark: {
+          chatId: chatId,
+          messageId: messageId,
+        },
+        session: session
+      })
     } else {
       await this.lark.sendText(chatId, '会话创建失败');
     }
@@ -108,7 +117,14 @@ export class SessionService {
     const session = await this.codexController.resumeSession(sessionId)
     if (session) {
       await this.lark.sendText(chatId, '会话已恢复：' + session.id);
-      await this.taskStore.write({currentSessionId: session.id, larkChatId: chatId, session: session})
+      await this.taskStore.write({
+        currentSessionId: session.id,
+        session: session,
+        lark: {
+          chatId: chatId,
+          messageId: ''
+        }
+      })
     } else {
       await this.lark.sendText(chatId, '会话不存在');
     }

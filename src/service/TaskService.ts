@@ -8,18 +8,18 @@ import {
   type FileChangeApprovalDecision,
   type FileChangeRequestApprovalParams,
   ItemCompletedNotification,
-  ItemStartedNotification,
+  ItemStartedNotification, McpServerElicitationRequestParams,
   McpToolCall,
   ThreadItem,
   ThreadStartedNotification,
   ThreadStatusChangedNotification,
-  TurnCompletedNotification,
+  TurnCompletedNotification, TurnPlanUpdatedNotification,
   TurnStartedNotification
 } from "../codex/protocol/v2";
 import {TaskState, TaskStore} from "../storage/TaskStore";
 import {ParsedCommand} from "../domain/commands";
 import {EventDispatcher} from "../event/EventDispatcher";
-import {buildCommandExecution, buildMcpToolCallCard, textCard} from "../lark/LarkCard";
+import {buildCommandExecution, buildMcpToolCallCard, buildTurnPlanCard, textCard} from "../lark/LarkCard";
 import {ServerRequest} from "../codex/protocol";
 
 export class TaskService {
@@ -49,8 +49,14 @@ export class TaskService {
     if (!taskState.currentSessionId) {
       return;
     }
+    const messageId = data.message.message_id
     if (command?.kind === 'user_message') {
+      const reaction_id = await this.lark.addEmoji(data.message.message_id, "Typing")
       taskState.turn = await this.codexController.sendUserMessage(taskState.currentSessionId, command.message)
+      taskState.lark.messageId = messageId
+      taskState.lark.reaction_id = {
+        typing: reaction_id
+      }
       await this.taskStore.write(taskState)
     }
   }
@@ -67,10 +73,14 @@ export class TaskService {
       await withCondition(
         async () => {
           taskState.status = notification.status
+          if (taskState.session) {
+            taskState.session.status = notification.status
+          }
           await this.taskStore.write(taskState)
         },
         taskState.currentSessionId === notification.threadId
       )
+      return
     }
 
     if (method === 'thread/started') {
@@ -83,6 +93,7 @@ export class TaskService {
         },
         taskState.currentSessionId === notification.thread.id
       )
+      return
     }
 
     if (method === 'turn/started') {
@@ -94,6 +105,7 @@ export class TaskService {
         },
         taskState.currentSessionId === notification.threadId,
       )
+      return
     }
 
     if (method === 'turn/completed') {
@@ -101,11 +113,15 @@ export class TaskService {
       await withCondition(
         async () => {
           taskState.turn = notification.turn
+          taskState.activeItem = undefined
           await this.taskStore.write(taskState)
+          await this.lark.deleteEmoji(taskState.lark.messageId, taskState.lark.reaction_id?.typing)
+          await this.lark.addEmoji(taskState.lark.messageId, "DONE")
         },
         taskState.currentSessionId === notification.threadId,
         taskState.turn?.id === notification.turn.id,
       )
+      return
     }
 
     if (method === 'item/started') {
@@ -113,25 +129,39 @@ export class TaskService {
       await withCondition(
         async () => {
           taskState.activeItem = notification.item
+          if (notification.item.type === 'agentMessage') {
+            const messageId = await this.lark.sendCard(taskState.lark.chatId, textCard('思考中...'))
+            taskState.streamState = {
+              messageId: messageId,
+              dirty: true
+            }
+            this.scheduleStreamMessageCardUpdate(taskState)
+          }
           await this.taskStore.write(taskState)
         },
         taskState.currentSessionId === notification.threadId,
         taskState.turn?.id === notification.turnId,
       )
+      return
     }
 
     if (method === 'item/agentMessage/delta') {
       const notification = data.params as AgentMessageDeltaNotification
       await withCondition(
         async () => {
-          if (notification.delta && taskState.activeItem?.type === 'agentMessage') {
-            taskState.activeItem.text += notification.delta
+          if (!notification.delta || taskState.activeItem?.type !== 'agentMessage') {
+            return;
+          }
+          taskState.activeItem.text += notification.delta
+          if (taskState.streamState) {
+            taskState.streamState.dirty = true
           }
         },
         taskState.currentSessionId === notification.threadId,
         taskState.turn?.id === notification.turnId,
         taskState.activeItem?.id === notification.itemId
       )
+      return
     }
 
     if (method === 'item/completed') {
@@ -146,7 +176,22 @@ export class TaskService {
         taskState.turn?.id === notification.turnId,
         taskState.activeItem?.id === notification.item.id
       )
+      return
     }
+
+    if (method === 'turn/plan/updated') {
+      const notification = data.params as TurnPlanUpdatedNotification
+      await withCondition(
+          async () => {
+            await this.lark.sendCard(taskState.lark.chatId, buildTurnPlanCard(notification))
+          },
+          taskState.currentSessionId === notification.threadId,
+          taskState.turn?.id === notification.turnId,
+      )
+      return
+    }
+
+    // 以下为request
 
     if (method === 'item/fileChange/requestApproval') {
       const request = data as ServerRequest
@@ -156,11 +201,25 @@ export class TaskService {
       })
     }
 
+    if (method === 'mcpServer/elicitation/request') {
+      const request = data as ServerRequest
+      await this.codexController.responseApproval(request.id as number, {
+        action: "accept"
+      })
+    }
+
+    if (method === 'item/commandExecution/requestApproval') {
+      const request = data as ServerRequest
+      await this.codexController.responseApproval(request.id as number, {
+        decision: "accept"
+      })
+    }
+
     if (method === 'error') {
       const notification = data.params as ErrorNotification
       await withCondition(
         async () => {
-          await this.lark.sendText(taskState.larkChatId, notification.error.message)
+          await this.lark.sendText(taskState.lark.chatId, notification.error.message)
         },
         taskState.currentSessionId === notification.threadId,
         taskState.turn?.id === notification.turnId,
@@ -168,12 +227,42 @@ export class TaskService {
     }
   }
 
+  private scheduleStreamMessageCardUpdate(taskState: TaskState): void {
+    const streamState = taskState.streamState
+    if (!streamState) {
+      return
+    }
+
+    streamState.timer = setTimeout(() => {
+      if (taskState.activeItem?.type !== 'agentMessage') {
+        return
+      }
+      if (!streamState.dirty) {
+        return
+      }
+      this.logger.info('interval callback update card: ' + Date.now())
+      this.lark.updateCard(streamState.messageId, textCard(taskState.activeItem?.text))
+          .then(() => {
+            streamState.timer = undefined
+            streamState.dirty = false
+            this.scheduleStreamMessageCardUpdate(taskState)
+          })
+    }, 1000)
+  }
+
   async handleCompletedItem(taskState: TaskState, currentCompletedItem: ThreadItem) {
     switch (currentCompletedItem.type) {
       case 'agentMessage':
+        const streamState = taskState.streamState || { messageId: '', timer: undefined }
+        if (streamState.timer) {
+          this.logger.info('clear update card interval callback')
+          clearTimeout(streamState.timer)
+        }
+        await this.lark.updateCard(streamState.messageId, textCard(currentCompletedItem.text))
+        break;
       case 'plan':
         if (currentCompletedItem.text) {
-          await this.lark.sendCard(taskState.larkChatId, textCard(currentCompletedItem.text))
+          await this.lark.sendCard(taskState.lark.chatId, textCard(currentCompletedItem.text))
         }
         break;
       case 'reasoning': {
@@ -182,15 +271,15 @@ export class TaskService {
           ...currentCompletedItem.content,
         ].join('\n')
         if (content) {
-          await this.lark.sendText(taskState.larkChatId, content)
+          await this.lark.sendText(taskState.lark.chatId, content)
         }
         break;
       }
       case 'mcpToolCall':
-        await this.lark.sendCard(taskState.larkChatId, buildMcpToolCallCard(currentCompletedItem))
+        await this.lark.sendCard(taskState.lark.chatId, buildMcpToolCallCard(currentCompletedItem))
         break;
       case 'commandExecution':
-        await this.lark.sendCard(taskState.larkChatId, buildCommandExecution(currentCompletedItem))
+        await this.lark.sendCard(taskState.lark.chatId, buildCommandExecution(currentCompletedItem))
         break;
       default:
         break;

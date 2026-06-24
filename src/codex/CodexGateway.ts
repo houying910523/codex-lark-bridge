@@ -1,13 +1,14 @@
-import WebSocket from 'ws';
 import {Logger} from "pino";
 import {EventDispatcher, XEvent} from "../event/EventDispatcher.js";
+import WebSocket from "ws";
 
 export class CodexProtocolError extends Error {}
 
 export interface CodexGatewayOptions {
-  wsUrl: string;
+  wsUrl?: string;
   handshakeTimeoutMs?: number;
   reconnectMs?: number;
+  socketFile?: string
 }
 
 export interface CodexEvent extends XEvent {
@@ -15,7 +16,7 @@ export interface CodexEvent extends XEvent {
   data?: Record<string, any>;
 }
 
-type CodexRequest = {
+export type CodexRequest = {
   jsonrpc: string;
   id: number;
   params?: Record<string, unknown>;
@@ -23,7 +24,7 @@ type CodexRequest = {
   result?: Record<string, any>;
 }
 
-type PendingRequest = {
+export type PendingRequest = {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
   id: number;
@@ -32,18 +33,18 @@ type PendingRequest = {
 }
 export class CodexGatewayError extends Error {}
 
-export class CodexGateway {
+export abstract class CodexGateway {
   private ws?: WebSocket;
   private nextId = 1;
-  private connected = false;
-  private intentionallyClosed = false;
-  private readonly pendingRequests = new Map<number, PendingRequest>();
-  private reconnectTimer?: NodeJS.Timeout;
+  protected connected = false;
+  protected intentionallyClosed = false;
+  protected reconnectTimer?: NodeJS.Timeout;
+  protected readonly pendingRequests = new Map<number, PendingRequest>();
 
-  constructor(
-    private readonly options: CodexGatewayOptions,
-    private readonly eventDispatcher: EventDispatcher<CodexEvent>,
-    private readonly logger: Logger,
+  protected constructor(
+    protected readonly options: CodexGatewayOptions,
+    protected readonly eventDispatcher: EventDispatcher<CodexEvent>,
+    protected readonly logger: Logger,
   ) {
   }
 
@@ -53,15 +54,14 @@ export class CodexGateway {
     }
 
     this.intentionallyClosed = false;
-    this.openSocket().then(ws => {
+    return this.openSocket().then(async ws => {
       this.ws = ws;
-      this.send("initialize", this.buildInitializeMessage()).then(() => {
-        this.connected = true;
-        this.eventDispatcher.publish({
-          source: 'codex-gateway',
-          method: 'initialized',
-        })
-      })
+      await this.send("initialize", this.buildInitializeMessage());
+      this.connected = true;
+      await this.eventDispatcher.publish({
+        source: 'codex-gateway',
+        method: 'initialized',
+      });
     })
   }
 
@@ -89,6 +89,8 @@ export class CodexGateway {
   isConnected(): boolean {
     return this.connected;
   }
+
+  protected abstract createWebSocket(): WebSocket
 
   async sendRequest(id: number, method?: string, params?: Record<string, unknown>, result?: Record<string, any>): Promise<unknown> {
     const response: CodexRequest = {
@@ -145,7 +147,7 @@ export class CodexGateway {
     });
   }
 
-  async onMessage(message: string): Promise<void> {
+  private async onMessage(message: string): Promise<void> {
     const payload = JSON.parse(message);
     const id: number = payload.id
     const pending = this.pendingRequests.get(id);
@@ -165,11 +167,7 @@ export class CodexGateway {
 
   private openSocket(): Promise<WebSocket> {
     return new Promise<WebSocket>( (resolve, reject) => {
-      this.logger.info({ wsUrl: this.options.wsUrl }, 'Connecting to Codex WebSocket');
-
-      const ws = new WebSocket(this.options.wsUrl, {
-        handshakeTimeout: this.options.handshakeTimeoutMs ?? 10_000,
-      });
+      const ws = this.createWebSocket();
 
       ws.on('open', () => {
         this.logger.info('Connected to Codex WebSocket');
@@ -237,17 +235,6 @@ export class CodexGateway {
       "capabilities": {
         "experimentalApi": true,
         "requestAttestation": false,
-        "optOutNotificationMethods": [
-          "thread/status/changed",
-            "thread/started",
-            "turn/started",
-            "item/started",
-            "item/completed",
-            "item/agentMessage/delta",
-            "item/fileChange/requestApproval",
-          "item/plan/delta",
-            "error",
-        ]
       }
     }
   }

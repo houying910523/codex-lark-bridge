@@ -3,13 +3,24 @@ import path from "node:path";
 import {Thread, ThreadItem, ThreadStatus, Turn} from "../codex/protocol/v2";
 
 export interface TaskState {
-  larkChatId: string;
+  lark: {
+    chatId: string;
+    messageId: string;
+    reaction_id?: {
+      typing: string;
+    }
+  }
   currentSessionId: string;
   session?: Thread;
   status?: ThreadStatus;
   turn?: Turn;
   items?: ThreadItem[];
   activeItem?: ThreadItem;
+  streamState?: {
+    messageId: string,
+    timer?: NodeJS.Timeout,
+    dirty: boolean
+  }
 }
 
 export class TaskStore {
@@ -18,7 +29,11 @@ export class TaskStore {
   constructor(dataDir: string) {
     this.store = new JsonFileStore(path.join(dataDir, 'task.json'), () => ({
       currentSessionId: '',
-      larkChatId: '',
+      lark: {
+        chatId: '',
+        messageId: '',
+      },
+      items: []
     }));
   }
 

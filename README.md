@@ -68,6 +68,12 @@ Codex notifications
 - 一个可用的飞书自建应用，且已开启机器人与事件订阅
 - 一个可访问的 Codex WebSocket 服务
 
+如果你要使用 `CODEX_CONNECT_TYPE=socket`：
+
+- `CODEX_SOCKET_FILE` 可以指向 `codex app-server --listen unix:///path/to/codex.sock` 暴露出来的 Unix socket，也可以指向本机默认的 `~/.codex/app-server-control/app-server-control.sock`。
+- 这个模式底层不是裸 `net.Socket` JSON-RPC，而是 Unix socket 上的 WebSocket 握手和文本帧。
+- 如果你使用的是 daemon 提供的 control socket，初始化后可能会收到 `remoteControl/status/changed` 通知；这不影响常规的 `thread/list`、`thread/start`、`turn/start` 这类 JSON-RPC 调用。
+
 ## 安装
 
 ```bash
@@ -116,6 +122,8 @@ CODEX_SESSION_SOURCE=codex-lark-bridge
 | `CODEX_WS_URL` | 是 | - | Codex WebSocket 地址，必须是 `ws://` 或 `wss://` |
 | `CODEX_WS_HANDSHAKE_TIMEOUT_MS` | 否 | `10000` | WebSocket 握手超时 |
 | `CODEX_WS_RECONNECT_MS` | 否 | `3000` | 断线重连间隔 |
+| `CODEX_SOCKET_FILE` | 条件必填 | - | 当 `CODEX_CONNECT_TYPE=socket` 时使用，可指向 `codex app-server --listen unix://...` 暴露的 Unix socket，或本机默认的 `app-server-control.sock` |
+| `CODEX_CONNECT_TYPE` | 否 | `websocket` | Codex 连接方式，支持 `websocket` 或 `socket` |
 | `OUTPUT_THROTTLE_MS` | 否 | `3000` | 预留的输出节流配置 |
 | `CODEX_SESSION_CWD` | 否 | - | 创建新会话时传给 Codex 的工作目录 |
 | `CODEX_SESSION_SOURCE` | 否 | `codex-lark-bridge` | 创建会话时附带的 source 标识 |
